@@ -1,0 +1,6 @@
+{
+  "name": "Gayatri Japa Tracker",
+  "description": "A private, distraction-free application for tracking daily Gayatri Japa counts performed during Sandhyavandanam.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
