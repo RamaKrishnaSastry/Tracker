@@ -128,7 +128,8 @@ fun TodayScreen(
                 .padding(paddingValues)
                 .verticalScroll(scrollState)
                 .background(MaterialTheme.colorScheme.background)
-                .padding(horizontal = 16.dp),
+                .padding(horizontal = 16.dp)
+                .padding(bottom = 16.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Spacer(modifier = Modifier.height(8.dp))

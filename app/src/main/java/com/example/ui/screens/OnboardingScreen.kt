@@ -61,9 +61,19 @@ fun OnboardingScreen(
                     // Move to second part: get initial lifetime counts
                     viewModel.setOnboardingStep(3)
                 }
+            } catch (e: ApiException) {
+                Log.e("OnboardingScreen", "Google Sign-In failed with code ${e.statusCode}: ${e.message}")
+                val errorMessage = when (e.statusCode) {
+                    10 -> "SHA-1 certificate mismatch or Google API not configured. Please check cloud console."
+                    12501 -> "Sign-In cancelled. You can proceed offline for now."
+                    12500 -> "Sign-In failed. Verify OAuth credentials or Google Play Services."
+                    else -> "Sign-In error (code ${e.statusCode}). You can proceed offline."
+                }
+                Log.e("OnboardingScreen", "Full error: $errorMessage")
+                // Still allow proceeding offline, but log the diagnostic
+                viewModel.setOnboardingStep(3)
             } catch (e: Exception) {
-                Log.e("OnboardingScreen", "Google Sign in failed: ${e.message}")
-                // In case of any exception (e.g. no internet/config missing), bypass to enter counts offline
+                Log.e("OnboardingScreen", "Unexpected error during sign-in: ${e.message}")
                 viewModel.setOnboardingStep(3)
             }
         } else {
