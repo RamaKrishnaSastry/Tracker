@@ -6,3 +6,15 @@ plugins {
   alias(libs.plugins.roborazzi) apply false
   alias(libs.plugins.secrets) apply false
 }
+
+tasks.register("decodeKeystore") {
+    doLast {
+        val base64File = file("debug.keystore.base64")
+        val keystoreFile = file("debug.keystore")
+        if (base64File.exists()) {
+            val decoded = java.util.Base64.getDecoder().decode(base64File.readText().trim())
+            keystoreFile.writeBytes(decoded)
+            println("Decoded base64 keystore")
+        }
+    }
+}

@@ -17,6 +17,11 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.sp
 import com.example.ui.JapaViewModel
 import com.example.ui.screens.HistoryScreen
 import com.example.ui.screens.OnboardingScreen
@@ -33,6 +38,7 @@ class MainActivity : ComponentActivity() {
         setContent {
             val themeMode by viewModel.themeMode.collectAsState()
             val onboardingStep by viewModel.onboardingStep.collectAsState()
+            val universalColorName by viewModel.universalColor.collectAsState()
 
             val isDark = when (themeMode) {
                 "dark" -> true
@@ -40,7 +46,10 @@ class MainActivity : ComponentActivity() {
                 else -> isSystemInDarkTheme()
             }
 
-            MyApplicationTheme(darkTheme = isDark) {
+            MyApplicationTheme(
+                darkTheme = isDark,
+                baseColor = com.example.ui.theme.getMantraColor(universalColorName)
+            ) {
                 if (onboardingStep < 4) {
                     // Show onboarding flows
                     OnboardingScreen(
@@ -65,39 +74,63 @@ fun MainDashboardShell(viewModel: JapaViewModel) {
     Scaffold(
         modifier = Modifier.fillMaxSize(),
         bottomBar = {
-            NavigationBar(
-                modifier = Modifier.testTag("app_navigation_bar"),
-                containerColor = MaterialTheme.colorScheme.surface,
-                tonalElevation = 8.dp
+            // Shorter, custom-styled bottom navigation for a more immersive feel
+            Surface(
+                tonalElevation = 8.dp,
+                color = MaterialTheme.colorScheme.surface,
+                modifier = Modifier.fillMaxWidth().testTag("app_navigation_bar")
             ) {
-                NavigationBarItem(
-                    selected = activeTab == 0,
-                    onClick = { activeTab = 0 },
-                    icon = { Icon(Icons.Default.CalendarToday, contentDescription = "Today") },
-                    label = { Text("Today", style = MaterialTheme.typography.labelMedium) },
-                    modifier = Modifier.testTag("nav_tab_today")
-                )
-                NavigationBarItem(
-                    selected = activeTab == 1,
-                    onClick = { activeTab = 1 },
-                    icon = { Icon(Icons.Default.History, contentDescription = "History") },
-                    label = { Text("History", style = MaterialTheme.typography.labelMedium) },
-                    modifier = Modifier.testTag("nav_tab_history")
-                )
-                NavigationBarItem(
-                    selected = activeTab == 2,
-                    onClick = { activeTab = 2 },
-                    icon = { Icon(Icons.Default.Settings, contentDescription = "Settings") },
-                    label = { Text("Settings", style = MaterialTheme.typography.labelMedium) },
-                    modifier = Modifier.testTag("nav_tab_settings")
-                )
+                Row(
+                    modifier = Modifier
+                        .windowInsetsPadding(WindowInsets.navigationBars)
+                        .fillMaxWidth()
+                        .height(64.dp), // Reduced height from typical 80dp
+                    horizontalArrangement = Arrangement.SpaceAround,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    val tabs = listOf(
+                        Triple(0, Icons.Default.CalendarToday, "Today"),
+                        Triple(1, Icons.Default.History, "History"),
+                        Triple(2, Icons.Default.Settings, "Settings")
+                    )
+
+                    val testTags = listOf("nav_tab_today", "nav_tab_history", "nav_tab_settings")
+
+                    for (i in tabs.indices) {
+                        val (index, icon, label) = tabs[i]
+                        val selected = activeTab == index
+                        Column(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clickable { activeTab = index }
+                                .testTag(testTags[i])
+                                .padding(vertical = 4.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.Center
+                        ) {
+                            Icon(
+                                icon,
+                                contentDescription = label,
+                                tint = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                                modifier = Modifier.size(24.dp)
+                            )
+                            Text(
+                                text = label,
+                                style = MaterialTheme.typography.labelSmall.copy(
+                                    fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal
+                                ),
+                                color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                            )
+                        }
+                    }
+                }
             }
         }
     ) { innerPadding ->
         Surface(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(innerPadding),
+                .padding(bottom = innerPadding.calculateBottomPadding()),
             color = MaterialTheme.colorScheme.background
         ) {
             when (activeTab) {

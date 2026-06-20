@@ -6,6 +6,7 @@ import android.widget.Space
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -33,6 +34,9 @@ import androidx.compose.ui.unit.sp
 import com.google.android.gms.auth.api.signin.GoogleSignIn
 import com.google.android.gms.common.api.ApiException
 import com.example.ui.JapaViewModel
+import com.example.ui.theme.getMantraColor
+import com.example.ui.theme.toHexString
+import com.example.ui.components.ColorPickerDialog
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -47,36 +51,35 @@ fun SettingsScreen(
     val userProfile by viewModel.userProfile.collectAsState()
     val syncMessage by viewModel.syncMessage.collectAsState()
     val authError by viewModel.authError.collectAsState()
+    val universalColor by viewModel.universalColor.collectAsState()
 
+    val context = LocalContext.current
     val googleSignInLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult()
     ) { result ->
-        if (result.resultCode == Activity.RESULT_OK) {
-            val task = GoogleSignIn.getSignedInAccountFromIntent(result.data)
-            try {
-                val account = task.getResult(ApiException::class.java)
-                if (account != null) {
-                    viewModel.authManager.updateProfile(account)
-                    viewModel.clearAuthError()
-                    viewModel.triggerManualSync()
-                }
-            } catch (e: ApiException) {
-                val message = when (e.statusCode) {
-                    12500 -> "Google Sign-In failed. Please verify OAuth credentials or Google Play Services."
-                    12501 -> "Google Sign-In was cancelled."
-                    10 -> "Google Drive API is not configured correctly (Developer Error 10)."
-                    7 -> "Network error. Please verify internet connection."
-                    else -> "Google Sign-In failed (code ${e.statusCode}). Please verify OAuth consent or SHA-1 fingerprints."
-                }
-                Log.e("SettingsScreen", "ApiException: code ${e.statusCode}, message: ${e.message}")
-                viewModel.setAuthError(message)
+        val task = GoogleSignIn.getSignedInAccountFromIntent(result.data)
+        try {
+            val account = task.getResult(ApiException::class.java)
+            if (account != null) {
+                viewModel.authManager.updateProfile(account)
+                viewModel.clearAuthError()
+                viewModel.triggerManualSync()
+                android.widget.Toast.makeText(context, "Google Sign-In Successful!", android.widget.Toast.LENGTH_SHORT).show()
             }
-        } else {
-            viewModel.setAuthError("Google Sign-In cancelled or failed.")
+        } catch (e: ApiException) {
+            val message = when (e.statusCode) {
+                12500 -> "Sign-In failed (12500). Verify OAuth credentials or Consent Screen."
+                12501 -> "Google Sign-In was cancelled (12501)."
+                10    -> "Developer Error (10): SHA-1 mismatch or Drive API not enabled. Check Cloud Console."
+                7     -> "Network error (7). Please verify internet connection."
+                else  -> "Google Sign-In failed (code ${e.statusCode})."
+            }
+            Log.e("SettingsScreen", "ApiException: code ${e.statusCode}, message: ${e.message}")
+            android.widget.Toast.makeText(context, message, android.widget.Toast.LENGTH_LONG).show()
+            viewModel.setAuthError(message)
         }
     }
 
-    val context = LocalContext.current
     var showTimePickerDialogFor by remember { mutableStateOf<String?>(null) } // "morning", "afternoon", "evening" or null
 
     var editingLifetimeCount by remember { mutableStateOf(false) }
@@ -98,6 +101,7 @@ fun SettingsScreen(
             .fillMaxSize()
             .verticalScroll(scrollState)
             .background(MaterialTheme.colorScheme.background)
+            .statusBarsPadding()
             .padding(16.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
@@ -253,30 +257,51 @@ fun SettingsScreen(
             shape = RoundedCornerShape(16.dp),
             elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
         ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(16.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = "Enable Punascharana Japa",
-                        style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Medium),
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                    Text(
-                        text = "Include auxiliary Punascharana counts in the dashboard tracking.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+            Column {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Enable Punascharana Japa",
+                            style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Medium),
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Text(
+                            text = "Include auxiliary Punascharana counts globally.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                        )
+                    }
+                    Switch(
+                        checked = isPunascharanaEnabled,
+                        onCheckedChange = { viewModel.setPunascharanaEnabled(it) },
+                        modifier = Modifier.testTag("punascharana_toggle_switch")
                     )
                 }
-                Switch(
-                    checked = isPunascharanaEnabled,
-                    onCheckedChange = { viewModel.setPunascharanaEnabled(it) },
-                    modifier = Modifier.testTag("punascharana_toggle_switch")
+                
+                Divider(color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.05f))
+                
+                var showManageDialog by remember { mutableStateOf(false) }
+                
+                ListItem(
+                    headlineContent = { Text("Manage My Practices", fontWeight = FontWeight.Bold) },
+                    supportingContent = { Text("Re-order, archive, or set default practice.") },
+                    leadingContent = { Icon(Icons.Default.SettingsSuggest, null, tint = MaterialTheme.colorScheme.primary) },
+                    trailingContent = { Icon(Icons.Default.ChevronRight, null) },
+                    modifier = Modifier.clickable { showManageDialog = true }.testTag("manage_practices_item")
                 )
+                
+                if (showManageDialog) {
+                    ManagePracticesDialog(
+                        viewModel = viewModel,
+                        onDismiss = { showManageDialog = false }
+                    )
+                }
             }
         }
 
@@ -290,21 +315,119 @@ fun SettingsScreen(
             shape = RoundedCornerShape(16.dp),
             elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
         ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(16.dp),
-                horizontalArrangement = Arrangement.SpaceEvenly
-            ) {
-                val themes = listOf("system" to "System", "light" to "Light", "dark" to "Dark")
-                themes.forEach { (mode, name) ->
-                    FilterChip(
-                        selected = themeMode == mode,
-                        onClick = { viewModel.updateThemeMode(mode) },
-                        label = { Text(name) },
-                        modifier = Modifier.testTag("theme_chip_$mode")
+            Column(modifier = Modifier.padding(16.dp)) {
+                @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+                androidx.compose.foundation.layout.FlowRow(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceEvenly
+                ) {
+                    val themes = listOf("system" to "System", "light" to "Light", "dark" to "Dark")
+                    themes.forEach { (mode, name) ->
+                        FilterChip(
+                            selected = themeMode == mode,
+                            onClick = { viewModel.updateThemeMode(mode) },
+                            label = { Text(name) },
+                            modifier = Modifier.testTag("theme_chip_$mode")
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+                Divider(color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.08f))
+                Spacer(modifier = Modifier.height(16.dp))
+
+                Text(
+                    text = "Universal App Color",
+                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                Text(
+                    text = "This color reflects globally across the application shell and default components.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                )
+                
+                Spacer(modifier = Modifier.height(12.dp))
+
+                @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+                androidx.compose.foundation.layout.FlowRow(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    val colorsList = listOf("Indigo", "Royal", "Teal", "Saffron", "Crimson", "Emerald", "Amber", "Slate", "Violet")
+                    colorsList.forEach { colorName ->
+                        val isSelected = universalColor.equals(colorName, ignoreCase = true)
+                        val color = com.example.ui.theme.getMantraColor(colorName)
+                        
+                        Box(
+                            modifier = Modifier
+                                .size(36.dp)
+                                .clip(CircleShape)
+                                .background(color)
+                                .clickable { viewModel.setUniversalColor(colorName) }
+                                .border(
+                                    width = if (isSelected) 3.dp else 0.dp,
+                                    color = if (isSelected) MaterialTheme.colorScheme.onSurface else Color.Transparent,
+                                    shape = CircleShape
+                                )
+                                .testTag("universal_color_$colorName"),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            if (isSelected) {
+                                Icon(
+                                    Icons.Default.Check,
+                                    contentDescription = null,
+                                    tint = Color.White,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+                var showVisualPicker by remember { mutableStateOf(false) }
+                var customHex by remember { mutableStateOf(if (universalColor.startsWith("#")) universalColor else "") }
+
+                if (showVisualPicker) {
+                    ColorPickerDialog(
+                        initialColor = getMantraColor(universalColor),
+                        onColorSelected = { 
+                            val hex = it.toHexString()
+                            viewModel.setUniversalColor(hex)
+                            customHex = hex
+                        },
+                        onDismiss = { showVisualPicker = false }
                     )
                 }
+
+                OutlinedTextField(
+                    value = customHex,
+                    onValueChange = { 
+                        customHex = it
+                        if (it.length >= 4 && (it.startsWith("#"))) {
+                            viewModel.setUniversalColor(it)
+                        }
+                    },
+                    label = { Text("Custom Hex Color (e.g. #6449A7)") },
+                    placeholder = { Text("#RRGGBB") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth().testTag("universal_custom_hex_input"),
+                    leadingIcon = { 
+                        Box(
+                            modifier = Modifier
+                                .size(24.dp)
+                                .background(getMantraColor(universalColor), CircleShape)
+                                .border(1.dp, MaterialTheme.colorScheme.outline, CircleShape)
+                        )
+                    },
+                    trailingIcon = {
+                        IconButton(onClick = { showVisualPicker = true }) {
+                            Icon(Icons.Default.Palette, contentDescription = "Pick Color")
+                        }
+                    }
+                )
             }
         }
 
@@ -727,6 +850,137 @@ fun DialColumn(
             modifier = Modifier.testTag("btn_${tag}_down")
         ) {
             Icon(Icons.Default.KeyboardArrowDown, contentDescription = "Down")
+        }
+    }
+}
+
+@Composable
+fun ManagePracticesDialog(
+    viewModel: com.example.ui.JapaViewModel,
+    onDismiss: () -> Unit
+) {
+    val activePractices by viewModel.activeCustomPractices.collectAsState()
+    val archivedPractices by viewModel.archivedCustomPractices.collectAsState()
+    val defaultPid by viewModel.defaultPracticeId.collectAsState()
+    
+    var showArchived by remember { mutableStateOf(false) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Manage Practices") },
+        text = {
+            Column(modifier = Modifier.heightIn(max = 500.dp)) {
+                TabRow(selectedTabIndex = if (showArchived) 1 else 0) {
+                    Tab(selected = !showArchived, onClick = { showArchived = false }, text = { Text("Active") })
+                    Tab(selected = showArchived, onClick = { showArchived = true }, text = { Text("Archived") })
+                }
+                
+                Spacer(modifier = Modifier.height(16.dp))
+                
+                if (!showArchived) {
+                    androidx.compose.foundation.lazy.LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        items(activePractices.size) { index ->
+                            val p = activePractices[index]
+                            PracticeManagementRow(
+                                practice = p,
+                                isDefault = p.id == defaultPid,
+                                onMoveUp = if (index > 0) { { 
+                                    val newList = activePractices.toMutableList()
+                                    // Room order is 0-indexed, update all or swap
+                                    val swapWith = activePractices[index - 1]
+                                    viewModel.updatePracticeOrder(listOf(p.copy(displayOrder = index - 1), swapWith.copy(displayOrder = index)))
+                                } } else null,
+                                onMoveDown = if (index < activePractices.size - 1) { { 
+                                    val swapWith = activePractices[index + 1]
+                                    viewModel.updatePracticeOrder(listOf(p.copy(displayOrder = index + 1), swapWith.copy(displayOrder = index)))
+                                } } else null,
+                                onArchive = { viewModel.togglePracticeArchived(p.id, true) },
+                                onSetDefault = { viewModel.setDefaultPractice(p.id) }
+                            )
+                        }
+                        
+                        if (activePractices.isEmpty()) {
+                            item { Text("No active practices found.", color = Color.Gray) }
+                        }
+                    }
+                } else {
+                    androidx.compose.foundation.lazy.LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        items(archivedPractices.size) { index ->
+                            val p = archivedPractices[index]
+                            ListItem(
+                                headlineContent = { Text(p.name) },
+                                supportingContent = { Text(p.practiceType) },
+                                trailingContent = {
+                                    IconButton(onClick = { viewModel.togglePracticeArchived(p.id, false) }) {
+                                        Icon(Icons.Default.Unarchive, "Unarchive")
+                                    }
+                                }
+                            )
+                        }
+                        if (archivedPractices.isEmpty()) {
+                            item { Text("No archived practices.", color = Color.Gray) }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) { Text("Done") }
+        }
+    )
+}
+
+@Composable
+fun PracticeManagementRow(
+    practice: com.example.data.CustomPractice,
+    isDefault: Boolean,
+    onMoveUp: (() -> Unit)?,
+    onMoveDown: (() -> Unit)?,
+    onArchive: () -> Unit,
+    onSetDefault: () -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+    ) {
+        Row(
+            modifier = Modifier.padding(12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(practice.name, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodyLarge)
+                    if (isDefault) {
+                        Spacer(modifier = Modifier.width(8.dp))
+                        SuggestionChip(
+                            onClick = {},
+                            label = { Text("DEFAULT", fontSize = 10.sp) },
+                            colors = SuggestionChipDefaults.suggestionChipColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
+                        )
+                    }
+                }
+                Text(practice.practiceType, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            
+            Row {
+                if (!isDefault) {
+                    IconButton(onClick = onSetDefault) {
+                        Icon(Icons.Default.PushPin, "Set Default", modifier = Modifier.size(20.dp))
+                    }
+                }
+                
+                IconButton(onClick = onArchive) {
+                    Icon(Icons.Default.Archive, "Archive", modifier = Modifier.size(20.dp))
+                }
+                
+                IconButton(onClick = onMoveUp ?: {}, enabled = onMoveUp != null) {
+                    Icon(Icons.Default.ArrowUpward, "Move Up", modifier = Modifier.size(20.dp))
+                }
+                
+                IconButton(onClick = onMoveDown ?: {}, enabled = onMoveDown != null) {
+                    Icon(Icons.Default.ArrowDownward, "Move Down", modifier = Modifier.size(20.dp))
+                }
+            }
         }
     }
 }

@@ -45,7 +45,7 @@ class AuthManager(private val context: Context) {
         val account = GoogleSignIn.getLastSignedInAccount(context)
         if (account != null) {
             _userProfile.value = UserProfile(
-                displayName = account.displayName ?: "Gayatri Practitioner",
+                displayName = account.displayName ?: "Japa Mitra",
                 email = account.email ?: "local@sandhya.org",
                 photoUrl = account.photoUrl?.toString()
             )
@@ -56,7 +56,7 @@ class AuthManager(private val context: Context) {
                     val silentAccount = task.getResult(com.google.android.gms.common.api.ApiException::class.java)
                     if (silentAccount != null) {
                         _userProfile.value = UserProfile(
-                            displayName = silentAccount.displayName ?: "Gayatri Practitioner",
+                            displayName = silentAccount.displayName ?: "Japa Mitra",
                             email = silentAccount.email ?: "local@sandhya.org",
                             photoUrl = silentAccount.photoUrl?.toString()
                         )
@@ -74,7 +74,7 @@ class AuthManager(private val context: Context) {
 
     fun updateProfile(account: GoogleSignInAccount) {
         _userProfile.value = UserProfile(
-            displayName = account.displayName ?: "Gayatri Practitioner",
+            displayName = account.displayName ?: "Japa Mitra",
             email = account.email ?: "local@sandhya.org",
             photoUrl = account.photoUrl?.toString()
         )

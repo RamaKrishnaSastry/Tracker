@@ -30,7 +30,7 @@ data class JapaEntry(
     val updatedAt: String // ISO-8601 UTC timestamp
 ) {
     val dailyTotal: Int
-        get() = pratahSandhyaCount + pratahPunascharanaCount +
-                madhyahnikaSandhyaCount + madhyahnikaPunascharanaCount +
-                sayamSandhyaCount + sayamPunascharanaCount
+        get() = (if (pratahSandhyaCount > 0) pratahSandhyaCount else 0) + pratahPunascharanaCount +
+                (if (madhyahnikaSandhyaCount > 0) madhyahnikaSandhyaCount else 0) + madhyahnikaPunascharanaCount +
+                (if (sayamSandhyaCount > 0) sayamSandhyaCount else 0) + sayamPunascharanaCount
 }

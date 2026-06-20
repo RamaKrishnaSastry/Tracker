@@ -11,9 +11,16 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 
-private val DarkColorScheme =
-  darkColorScheme(
-    primary = GeometricPrimary,
+@Composable
+fun MyApplicationTheme(
+  darkTheme: Boolean = isSystemInDarkTheme(),
+  // Dynamic color is disabled to retain the exact Geometric Balance branding colorways
+  dynamicColor: Boolean = false,
+  baseColor: Color = GeometricPrimary,
+  content: @Composable () -> Unit,
+) {
+  val darkColorScheme = darkColorScheme(
+    primary = baseColor,
     secondary = GeometricSecondary,
     tertiary = GeometricTertiary,
     background = GeometricBgDark,
@@ -31,9 +38,8 @@ private val DarkColorScheme =
     outlineVariant = Color(0xFF49454F)
   )
 
-private val LightColorScheme =
-  lightColorScheme(
-    primary = GeometricPrimary,
+  val lightColorScheme = lightColorScheme(
+    primary = baseColor,
     secondary = GeometricSecondary,
     tertiary = GeometricTertiary,
     background = GeometricBgLight,
@@ -51,14 +57,7 @@ private val LightColorScheme =
     outlineVariant = Color(0xFFEADDFF)
   )
 
-@Composable
-fun MyApplicationTheme(
-  darkTheme: Boolean = isSystemInDarkTheme(),
-  // Dynamic color is disabled to retain the exact Geometric Balance branding colorways
-  dynamicColor: Boolean = false,
-  content: @Composable () -> Unit,
-) {
-  val colorScheme = if (darkTheme) DarkColorScheme else LightColorScheme
+  val colorScheme = if (darkTheme) darkColorScheme else lightColorScheme
 
   MaterialTheme(colorScheme = colorScheme, typography = Typography, content = content)
 }

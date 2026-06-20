@@ -5,7 +5,7 @@
     android:layout_height="match_parent"
     android:background="@drawable/widget_bg"
     android:orientation="vertical"
-    android:padding="16dp">
+    android:padding="18dp">
 
     <!-- Header line -->
     <RelativeLayout
@@ -14,27 +14,30 @@
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="GAYATRI JAPA TRACKER"
-            android:textColor="#E57373"
-            android:textSize="10sp"
+            android:text="GAYATRI JAPA"
+            android:textColor="#D0BCFF"
+            android:textSize="11sp"
             android:textStyle="bold"
+            android:letterSpacing="0.2"
             android:layout_alignParentLeft="true" />
-        <TextView
-            android:id="@+id/widget_lbl_lifetime"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="LIFETIME: 0"
-            android:textColor="#888888"
-            android:textSize="9sp"
-            android:layout_alignParentRight="true" />
+        
+        <ImageButton
+            android:id="@+id/btn_open_app_large"
+            android:layout_width="20dp"
+            android:layout_height="20dp"
+            android:src="@drawable/ic_edit_white"
+            android:background="@null"
+            android:scaleType="fitCenter"
+            android:layout_alignParentRight="true"
+            android:alpha="0.4" />
     </RelativeLayout>
 
     <View
         android:layout_width="match_parent"
         android:layout_height="1dp"
         android:background="#2C2D35"
-        android:layout_marginTop="6dp"
-        android:layout_marginBottom="12dp" />
+        android:layout_marginTop="8dp"
+        android:layout_marginBottom="14dp" />
 
     <!-- Main counter presentation -->
     <LinearLayout
@@ -47,32 +50,55 @@
         <LinearLayout
             android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:layout_weight="1.2"
+            android:layout_weight="1.3"
             android:orientation="vertical">
 
             <TextView
                 android:id="@+id/widget_label"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="Pratah Sandhya"
-                android:textColor="#FFFFFF"
+                android:text="Morning"
+                android:textColor="#D0BCFF"
                 android:textSize="18sp"
-                android:textStyle="bold" />
+                android:textStyle="bold"
+                android:textAllCaps="true"
+                android:letterSpacing="0.05" />
+
+            <ProgressBar
+                android:id="@+id/widget_progress"
+                style="?android:attr/progressBarStyleHorizontal"
+                android:layout_width="match_parent"
+                android:layout_height="6dp"
+                android:layout_marginTop="6dp"
+                android:layout_marginBottom="6dp"
+                android:progress="24"
+                android:progressDrawable="@android:drawable/progress_horizontal"
+                android:progressTint="#D0BCFF"
+                android:progressBackgroundTint="#3A3C4A" />
 
             <TextView
                 android:id="@+id/widget_sub_label"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="Target Sandhya is incomplete."
+                android:text="84 more to 108"
                 android:textColor="#888888"
-                android:textSize="11sp"
-                android:layout_marginTop="2dp" />
+                android:textSize="12sp" />
+            
+            <TextView
+                android:id="@+id/widget_lbl_lifetime"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="LIFETIME: 12450"
+                android:textColor="#444444"
+                android:textSize="10sp"
+                android:layout_marginTop="8dp"
+                android:letterSpacing="0.05" />
         </LinearLayout>
 
         <LinearLayout
             android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:layout_weight="0.8"
+            android:layout_weight="0.7"
             android:orientation="vertical"
             android:gravity="right">
 
@@ -81,124 +107,228 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="24"
-                android:textColor="#E57373"
-                android:textSize="36sp"
+                android:textColor="#FFFFFF"
+                android:textSize="48sp"
                 android:textStyle="bold" />
 
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="COUNT"
-                android:textColor="#888888"
-                android:textSize="8sp" />
+                android:textColor="#666666"
+                android:textSize="10sp"
+                android:letterSpacing="0.1" />
         </LinearLayout>
     </LinearLayout>
 
-    <!-- Action panel: Grid of 5 Quick Adds -->
-    <TextView
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="QUICK RECORD"
-        android:textColor="#555555"
-        android:textSize="9sp"
-        android:textStyle="bold"
-        android:layout_marginBottom="6dp" />
-
-    <LinearLayout
+    <!-- Main Content Area with ViewFlipper for swapping between Quick Actions and Manual Input -->
+    <ViewFlipper
+        android:id="@+id/widget_flipper"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:layout_marginBottom="6dp">
+        android:layout_height="wrap_content">
 
-        <Button
-            android:id="@+id/btn_quick_10"
-            android:layout_width="0dp"
-            android:layout_height="36dp"
-            android:layout_weight="1"
-            android:layout_marginRight="6dp"
-            android:text="+10"
-            android:textSize="11sp"
-            android:background="#33D32F2F"
-            android:textColor="#FFCDD2"
-            android:padding="0dp"
-            android:minHeight="0dp"
-            android:minWidth="0dp" />
+        <!-- Page 0: Quick Actions Grid -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical">
+            
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:layout_marginBottom="6dp">
 
-        <Button
-            android:id="@+id/btn_quick_24"
-            android:layout_width="0dp"
-            android:layout_height="36dp"
-            android:layout_weight="1"
-            android:layout_marginRight="6dp"
-            android:text="+24"
-            android:textSize="11sp"
-            android:background="#33D32F2F"
-            android:textColor="#FFCDD2"
-            android:padding="0dp"
-            android:minHeight="0dp"
-            android:minWidth="0dp" />
+                <Button
+                    android:id="@+id/btn_quick_10"
+                    android:layout_width="0dp"
+                    android:layout_height="38dp"
+                    android:layout_weight="1"
+                    android:layout_marginRight="6dp"
+                    android:text="+10"
+                    android:textSize="11sp"
+                    android:background="@drawable/widget_button_bg"
+                    android:textColor="#E0E0E0"
+                    android:padding="0dp"
+                    android:minHeight="0dp"
+                    android:minWidth="0dp" />
 
-        <Button
-            android:id="@+id/btn_quick_28"
-            android:layout_width="0dp"
-            android:layout_height="36dp"
-            android:layout_weight="1"
-            android:text="+28"
-            android:textSize="11sp"
-            android:background="#33D32F2F"
-            android:textColor="#FFCDD2"
-            android:padding="0dp"
-            android:minHeight="0dp"
-            android:minWidth="0dp" />
-    </LinearLayout>
+                <Button
+                    android:id="@+id/btn_quick_24"
+                    android:layout_width="0dp"
+                    android:layout_height="38dp"
+                    android:layout_weight="1"
+                    android:layout_marginRight="6dp"
+                    android:text="+24"
+                    android:textSize="11sp"
+                    android:background="@drawable/widget_button_bg"
+                    android:textColor="#E0E0E0"
+                    android:padding="0dp"
+                    android:minHeight="0dp"
+                    android:minWidth="0dp" />
 
-    <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:layout_marginBottom="12dp">
+                <Button
+                    android:id="@+id/btn_quick_28"
+                    android:layout_width="0dp"
+                    android:layout_height="38dp"
+                    android:layout_weight="1"
+                    android:text="+28"
+                    android:textSize="11sp"
+                    android:background="@drawable/widget_button_bg"
+                    android:textColor="#E0E0E0"
+                    android:padding="0dp"
+                    android:minHeight="0dp"
+                    android:minWidth="0dp" />
+            </LinearLayout>
 
-        <Button
-            android:id="@+id/btn_quick_54"
-            android:layout_width="0dp"
-            android:layout_height="36dp"
-            android:layout_weight="1"
-            android:layout_marginRight="6dp"
-            android:text="+54"
-            android:textSize="11sp"
-            android:background="#33D32F2F"
-            android:textColor="#FFCDD2"
-            android:padding="0dp"
-            android:minHeight="0dp"
-            android:minWidth="0dp" />
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:layout_marginBottom="12dp">
 
-        <Button
-            android:id="@+id/btn_quick_108"
-            android:layout_width="0dp"
-            android:layout_height="36dp"
-            android:layout_weight="1"
-            android:layout_marginRight="6dp"
-            android:text="+108"
-            android:textSize="11sp"
-            android:background="#D32F2F"
-            android:textColor="#FFFFFF"
-            android:padding="0dp"
-            android:minHeight="0dp"
-            android:minWidth="0dp" />
+                <Button
+                    android:id="@+id/btn_quick_54"
+                    android:layout_width="0dp"
+                    android:layout_height="38dp"
+                    android:layout_weight="1"
+                    android:layout_marginRight="6dp"
+                    android:text="+54"
+                    android:textSize="11sp"
+                    android:background="@drawable/widget_button_bg"
+                    android:textColor="#E0E0E0"
+                    android:padding="0dp"
+                    android:minHeight="0dp"
+                    android:minWidth="0dp" />
 
-        <Button
-            android:id="@+id/btn_open_app"
-            android:layout_width="0dp"
-            android:layout_height="36dp"
-            android:layout_weight="1"
-            android:text="OPEN"
-            android:textSize="11sp"
-            android:background="#44777777"
-            android:textColor="#FFFFFF"
-            android:padding="0dp"
-            android:minHeight="0dp"
-            android:minWidth="0dp" />
-    </LinearLayout>
+                <Button
+                    android:id="@+id/btn_quick_108"
+                    android:layout_width="0dp"
+                    android:layout_height="38dp"
+                    android:layout_weight="1"
+                    android:layout_marginRight="6dp"
+                    android:text="+108"
+                    android:textSize="11sp"
+                    android:background="@drawable/widget_button_accent_bg"
+                    android:textColor="#FFFFFF"
+                    android:textStyle="bold"
+                    android:padding="0dp"
+                    android:minHeight="0dp"
+                    android:minWidth="0dp" />
+
+                <Button
+                    android:id="@+id/btn_open_app"
+                    android:layout_width="0dp"
+                    android:layout_height="38dp"
+                    android:layout_weight="1"
+                    android:text="OPEN"
+                    android:textSize="11sp"
+                    android:background="@drawable/widget_button_bg"
+                    android:textColor="#FFFFFF"
+                    android:padding="0dp"
+                    android:minHeight="0dp"
+                    android:minWidth="0dp" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <!-- Page 1: Manual Input (Digit Pad) -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical">
+            
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:layout_marginBottom="8dp">
+                
+                <TextView
+                    android:id="@+id/widget_input_display"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="Enter: 0"
+                    android:textColor="#FFFFFF"
+                    android:textSize="16sp"
+                    android:textStyle="bold" />
+
+                <Button
+                    android:id="@+id/btn_widget_pass_large"
+                    android:layout_width="50dp"
+                    android:layout_height="28dp"
+                    android:text="PASS"
+                    android:textSize="8sp"
+                    android:background="@drawable/widget_button_bg"
+                    android:textColor="#FFA726"
+                    android:layout_marginRight="6dp"
+                    android:padding="0dp" />
+
+                <Button
+                    android:id="@+id/btn_widget_clear_large"
+                    android:layout_width="50dp"
+                    android:layout_height="28dp"
+                    android:text="RESET"
+                    android:textSize="8sp"
+                    android:background="@drawable/widget_button_bg"
+                    android:textColor="#E57373"
+                    android:layout_marginRight="6dp"
+                    android:padding="0dp" />
+                
+                <Button
+                    android:id="@+id/btn_input_back"
+                    android:layout_width="45dp"
+                    android:layout_height="28dp"
+                    android:text="BACK"
+                    android:textSize="8sp"
+                    android:background="@null"
+                    android:textColor="#888888"
+                    android:padding="0dp" />
+            </LinearLayout>
+
+            <!-- Row 1: 1 2 3 -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:layout_marginBottom="4dp">
+                <Button android:id="@+id/btn_digit_1" android:layout_width="0dp" android:layout_height="38dp" android:layout_weight="1" android:text="1" android:background="@drawable/widget_button_bg" android:textColor="#E0E0E0" android:layout_marginRight="4dp" />
+                <Button android:id="@+id/btn_digit_2" android:layout_width="0dp" android:layout_height="38dp" android:layout_weight="1" android:text="2" android:background="@drawable/widget_button_bg" android:textColor="#E0E0E0" android:layout_marginRight="4dp" />
+                <Button android:id="@+id/btn_digit_3" android:layout_width="0dp" android:layout_height="38dp" android:layout_weight="1" android:text="3" android:background="@drawable/widget_button_bg" android:textColor="#E0E0E0" />
+            </LinearLayout>
+            <!-- Row 2: 4 5 6 -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:layout_marginBottom="4dp">
+                <Button android:id="@+id/btn_digit_4" android:layout_width="0dp" android:layout_height="38dp" android:layout_weight="1" android:text="4" android:background="@drawable/widget_button_bg" android:textColor="#E0E0E0" android:layout_marginRight="4dp" />
+                <Button android:id="@+id/btn_digit_5" android:layout_width="0dp" android:layout_height="38dp" android:layout_weight="1" android:text="5" android:background="@drawable/widget_button_bg" android:textColor="#E0E0E0" android:layout_marginRight="4dp" />
+                <Button android:id="@+id/btn_digit_6" android:layout_width="0dp" android:layout_height="38dp" android:layout_weight="1" android:text="6" android:background="@drawable/widget_button_bg" android:textColor="#E0E0E0" />
+            </LinearLayout>
+            <!-- Row 3: 7 8 9 -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:layout_marginBottom="4dp">
+                <Button android:id="@+id/btn_digit_7" android:layout_width="0dp" android:layout_height="38dp" android:layout_weight="1" android:text="7" android:background="@drawable/widget_button_bg" android:textColor="#E0E0E0" android:layout_marginRight="4dp" />
+                <Button android:id="@+id/btn_digit_8" android:layout_width="0dp" android:layout_height="38dp" android:layout_weight="1" android:text="8" android:background="@drawable/widget_button_bg" android:textColor="#E0E0E0" android:layout_marginRight="4dp" />
+                <Button android:id="@+id/btn_digit_9" android:layout_width="0dp" android:layout_height="38dp" android:layout_weight="1" android:text="9" android:background="@drawable/widget_button_bg" android:textColor="#E0E0E0" />
+            </LinearLayout>
+            <!-- Row 4: CLEAR 0 ADD -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal">
+                <Button android:id="@+id/btn_digit_clear" android:layout_width="0dp" android:layout_height="38dp" android:layout_weight="1" android:text="CLR" android:background="@drawable/widget_button_bg" android:textColor="#E57373" android:layout_marginRight="4dp" />
+                <Button android:id="@+id/btn_digit_0" android:layout_width="0dp" android:layout_height="38dp" android:layout_weight="1" android:text="0" android:background="@drawable/widget_button_bg" android:textColor="#E0E0E0" android:layout_marginRight="4dp" />
+                <Button android:id="@+id/btn_digit_add" android:layout_width="0dp" android:layout_height="38dp" android:layout_weight="1" android:text="ADD" android:background="@drawable/widget_button_accent_bg" android:textColor="#FFFFFF" android:textStyle="bold" />
+            </LinearLayout>
+
+        </LinearLayout>
+    </ViewFlipper>
 
     <!-- Collapsible Punascharana / All Complete helper -->
     <LinearLayout
@@ -211,12 +341,12 @@
         <Button
             android:id="@+id/btn_punas_108"
             android:layout_width="match_parent"
-            android:layout_height="36dp"
+            android:layout_height="38dp"
             android:text="+108 Punascharana Japa"
             android:textSize="10sp"
             android:textStyle="bold"
-            android:background="#1E88E5"
-            android:textColor="#FFFFFF"
+            android:background="@drawable/widget_button_bg"
+            android:textColor="#64B5F6"
             android:padding="0dp"
             android:minHeight="0dp"
             android:minWidth="0dp"

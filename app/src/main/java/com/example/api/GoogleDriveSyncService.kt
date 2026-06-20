@@ -9,7 +9,11 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONObject
+import java.io.ByteArrayInputStream
+import java.io.ByteArrayOutputStream
 import java.io.IOException
+import java.util.zip.GZIPInputStream
+import java.util.zip.GZIPOutputStream
 
 class GoogleDriveSyncService {
     private val TAG = "GoogleDriveSyncService"
@@ -20,11 +24,34 @@ class GoogleDriveSyncService {
     private val payloadAdapter = moshi.adapter(SyncPayload::class.java)
 
     /**
+     * Compresses a string using GZIP.
+     */
+    private fun compress(data: String): ByteArray {
+        val bos = ByteArrayOutputStream(data.length)
+        GZIPOutputStream(bos).use { it.write(data.toByteArray(Charsets.UTF_8)) }
+        return bos.toByteArray()
+    }
+
+    /**
+     * Decompresses a GZIP byte array into a string.
+     */
+    private fun decompress(data: ByteArray): String {
+        return GZIPInputStream(ByteArrayInputStream(data)).bufferedReader(Charsets.UTF_8).use { it.readText() }
+    }
+
+    /**
+     * Checks if a byte array is GZIP compressed.
+     */
+    private fun isGzipped(data: ByteArray): Boolean {
+        return data.size >= 2 && data[0] == 0x1f.toByte() && data[1] == 0x8b.toByte()
+    }
+
+    /**
      * Resolves the file ID of "gayatri_japa_data.json" inside the hidden "appDataFolder".
      * Returns null if not found or the token is invalid.
      */
     private fun findBackupFileId(accessToken: String): String? {
-        val url = "https://www.googleapis.com/drive/v3/files?spaces=appDataFolder&q=name='gayatri_japa_data.json'"
+        val url = "https://www.googleapis.com/drive/v3/files?spaces=appDataFolder&q=name%3D%27gayatri_japa_data.json%27"
         val request = Request.Builder()
             .url(url)
             .addHeader("Authorization", "Bearer $accessToken")
@@ -54,9 +81,10 @@ class GoogleDriveSyncService {
      */
     private fun createMetadataPlaceholder(accessToken: String): String? {
         val url = "https://www.googleapis.com/drive/v3/files"
+        // Ensure "parents" is a JSON array instead of a string slice
         val jsonPayload = JSONObject()
             .put("name", "gayatri_japa_data.json")
-            .put("parents", listOf("appDataFolder"))
+            .put("parents", org.json.JSONArray(listOf("appDataFolder")))
             .toString()
 
         val body = jsonPayload.toRequestBody("application/json".toMediaTypeOrNull())
@@ -98,7 +126,12 @@ class GoogleDriveSyncService {
                     Log.e(TAG, "Fetching media failed: ${response.code}")
                     return null
                 }
-                val bodyStr = response.body?.string() ?: return null
+                val bodyBytes = response.body?.bytes() ?: return null
+                val bodyStr = if (isGzipped(bodyBytes)) {
+                    decompress(bodyBytes)
+                } else {
+                    String(bodyBytes, Charsets.UTF_8)
+                }
                 Log.d(TAG, "Downloaded payload successfully.")
                 return payloadAdapter.fromJson(bodyStr)
             }
@@ -124,7 +157,8 @@ class GoogleDriveSyncService {
 
         val url = "https://www.googleapis.com/upload/drive/v3/files/$fileId?uploadType=media"
         val jsonString = payloadAdapter.toJson(payload)
-        val body = jsonString.toRequestBody("application/json".toMediaTypeOrNull())
+        val compressedBytes = compress(jsonString)
+        val body = compressedBytes.toRequestBody("application/octet-stream".toMediaTypeOrNull())
 
         val request = Request.Builder()
             .url(url)

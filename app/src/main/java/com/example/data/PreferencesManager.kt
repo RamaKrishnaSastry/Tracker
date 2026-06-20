@@ -17,6 +17,7 @@ class PreferencesManager(context: Context) {
     fun getThemeMode(): String = prefs.getString("theme_mode", "system") ?: "system"
     fun setThemeMode(mode: String) {
         prefs.edit().putString("theme_mode", mode).apply()
+        updateSettingsTimestamp()
         _themeMode.value = mode
     }
 
@@ -65,7 +66,18 @@ class PreferencesManager(context: Context) {
     fun getInitialLifetimeCount(): Long = prefs.getLong("initial_lifetime_count", 0L)
     fun setInitialLifetimeCount(count: Long) {
         prefs.edit().putLong("initial_lifetime_count", count).apply()
+        updateSettingsTimestamp()
+        updateLifetimeCountTimestamp()
         _initialLifetimeCount.value = count
+    }
+
+    fun getInitialLifetimeCountUpdatedAt(): String = prefs.getString("initial_lifetime_count_updated_at", "2020-01-01T00:00:00Z") ?: "2020-01-01T00:00:00Z"
+
+    private fun updateLifetimeCountTimestamp() {
+        val now = java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", java.util.Locale.US).apply {
+            timeZone = java.util.TimeZone.getTimeZone("UTC")
+        }.format(java.util.Date())
+        prefs.edit().putString("initial_lifetime_count_updated_at", now).apply()
     }
 
     fun getLastSync(): String = prefs.getString("last_sync", "Never") ?: "Never"
@@ -84,11 +96,74 @@ class PreferencesManager(context: Context) {
     fun isPunascharanaEnabled(): Boolean = prefs.getBoolean("is_punascharana_enabled", true)
     fun setPunascharanaEnabled(enabled: Boolean) {
         prefs.edit().putBoolean("is_punascharana_enabled", enabled).apply()
+        updateSettingsTimestamp()
         _isPunascharanaEnabled.value = enabled
     }
 
     fun isOnboarded(): Boolean = prefs.getBoolean("is_onboarded", false)
     fun setOnboarded(onboarded: Boolean) {
         prefs.edit().putBoolean("is_onboarded", onboarded).apply()
+    }
+
+    fun getUserName(): String = prefs.getString("user_name", "Rama") ?: "Rama"
+    fun setUserName(name: String) {
+        prefs.edit().putString("user_name", name).apply()
+    }
+
+    private val _activePracticeId = MutableStateFlow(getActivePracticeId())
+    val activePracticeId: StateFlow<Long> = _activePracticeId.asStateFlow()
+
+    fun getActivePracticeId(): Long = prefs.getLong("active_practice_id", -1L)
+    fun setActivePracticeId(id: Long) {
+        prefs.edit().putLong("active_practice_id", id).apply()
+        _activePracticeId.value = id
+    }
+
+    private val _defaultPracticeId = MutableStateFlow(prefs.getLong("default_practice_id", -1L))
+    val defaultPracticeId: StateFlow<Long> = _defaultPracticeId.asStateFlow()
+
+    fun getDefaultPracticeId(): Long = _defaultPracticeId.value
+    fun setDefaultPracticeId(id: Long) {
+        prefs.edit().putLong("default_practice_id", id).apply()
+        _defaultPracticeId.value = id
+    }
+
+    private val _gayatriColor = MutableStateFlow(getGayatriColor())
+    val gayatriColor: StateFlow<String> = _gayatriColor.asStateFlow()
+
+    private val _universalColor = MutableStateFlow(getUniversalColor())
+    val universalColor: StateFlow<String> = _universalColor.asStateFlow()
+
+    fun getGayatriColor(): String = prefs.getString("gayatri_color", "royal") ?: "royal"
+    fun setGayatriColor(color: String) {
+        prefs.edit().putString("gayatri_color", color).apply()
+        updateSettingsTimestamp()
+        _gayatriColor.value = color
+    }
+
+    private val _gayatriName = MutableStateFlow(prefs.getString("gayatri_name", "Gayatri Japa") ?: "Gayatri Japa")
+    val gayatriName: StateFlow<String> = _gayatriName.asStateFlow()
+
+    fun getGayatriName(): String = _gayatriName.value
+    fun setGayatriName(name: String) {
+        prefs.edit().putString("gayatri_name", name).apply()
+        updateSettingsTimestamp()
+        _gayatriName.value = name
+    }
+
+    fun getUniversalColor(): String = prefs.getString("universal_color", "royal") ?: "royal"
+    fun setUniversalColor(color: String) {
+        prefs.edit().putString("universal_color", color).apply()
+        updateSettingsTimestamp()
+        _universalColor.value = color
+    }
+
+    fun getSettingsUpdatedAt(): String = prefs.getString("settings_updated_at", "2020-01-01T00:00:00Z") ?: "2020-01-01T00:00:00Z"
+    
+    fun updateSettingsTimestamp() {
+        val now = java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", java.util.Locale.US).apply {
+            timeZone = java.util.TimeZone.getTimeZone("UTC")
+        }.format(java.util.Date())
+        prefs.edit().putString("settings_updated_at", now).apply()
     }
 }
