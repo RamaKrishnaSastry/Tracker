@@ -181,16 +181,7 @@ class JapaViewModel(application: Application) : AndroidViewModel(application) {
             prefs.setActivePracticeId(defaultPid)
         }
 
-        viewModelScope.launch {
-            if (_activePracticeId.value == -1L && prefs.isOnboarded()) {
-                activeCustomPractices.firstOrNull { it.isNotEmpty() }?.let { practices ->
-                    if (_activePracticeId.value == -1L) {
-                        _activePracticeId.value = practices.first().id
-                        prefs.setActivePracticeId(practices.first().id)
-                    }
-                }
-            }
-        }
+
 
         viewModelScope.launch {
             if (prefs.isOnboarded()) {

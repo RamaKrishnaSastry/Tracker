@@ -198,6 +198,21 @@ fun TodayScreen(
                         expanded = expanded,
                         onDismissRequest = { expanded = false }
                     ) {
+                        DropdownMenuItem(
+                            text = { Text(gayatriName, fontWeight = if (activePracticeId == com.example.ui.GAYATRI_PRACTICE_ID) FontWeight.Bold else FontWeight.Normal) },
+                            onClick = {
+                                viewModel.setActivePractice(com.example.ui.GAYATRI_PRACTICE_ID)
+                                expanded = false
+                            },
+                            trailingIcon = if (activePracticeId == com.example.ui.GAYATRI_PRACTICE_ID) {
+                                { Icon(Icons.Default.Check, "Selected") }
+                            } else null
+                        )
+
+                        if (allPractices.isNotEmpty()) {
+                            Divider()
+                        }
+
                         allPractices.forEach { practice ->
                             DropdownMenuItem(
                                 text = { Text(practice.name, fontWeight = if (activePracticeId == practice.id) FontWeight.Bold else FontWeight.Normal) },
