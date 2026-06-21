@@ -59,7 +59,7 @@ interface CustomPracticeDao {
     @Query("SELECT * FROM custom_practice_entries")
     suspend fun getAllCustomPracticeEntries(): List<CustomPracticeEntry>
     
-    @Query("SELECT practiceId, SUM(count + morningCount + afternoonCount + eveningCount + morningPunasCount + afternoonPunasCount + eveningPunasCount) as totalCount FROM custom_practice_entries GROUP BY practiceId")
+    @Query("SELECT practiceId, SUM(CASE WHEN count>0 THEN count ELSE 0 END + CASE WHEN morningCount>0 THEN morningCount ELSE 0 END + CASE WHEN afternoonCount>0 THEN afternoonCount ELSE 0 END + CASE WHEN eveningCount>0 THEN eveningCount ELSE 0 END) as totalCount, SUM(CASE WHEN morningPunasCount>0 THEN morningPunasCount ELSE 0 END + CASE WHEN afternoonPunasCount>0 THEN afternoonPunasCount ELSE 0 END + CASE WHEN eveningPunasCount>0 THEN eveningPunasCount ELSE 0 END) as punasCount FROM custom_practice_entries GROUP BY practiceId")
     fun getAllPracticeTotalsFlow(): Flow<List<PracticeTotal>>
 
     // JapaSession CRUD
@@ -81,5 +81,6 @@ interface CustomPracticeDao {
 
 data class PracticeTotal(
     val practiceId: Long,
-    val totalCount: Int
+    val totalCount: Int,
+    val punasCount: Int = 0
 )

@@ -50,6 +50,7 @@ fun TodayScreen(
     val activePracticeId by viewModel.activePracticeId.collectAsState()
     val allPractices by viewModel.allCustomPractices.collectAsState()
     val activeCustomEntry by viewModel.activeCustomEntry.collectAsState()
+    val todayDate by viewModel.todayDate.collectAsState()
     val userName by viewModel.userName.collectAsState()
 
     val todayEntry by viewModel.todayEntry.collectAsState()
@@ -89,14 +90,8 @@ fun TodayScreen(
         count
     }
 
-    val currentName = remember(activePracticeId, allPractices, gayatriName) {
-        if (activePracticeId == com.example.ui.GAYATRI_PRACTICE_ID && allPractices.any { it.name == gayatriName }) {
-            gayatriName
-        } else if (activePracticeId != com.example.ui.GAYATRI_PRACTICE_ID) {
-            allPractices.find { it.id == activePracticeId }?.name ?: "Select Practice"
-        } else {
-            "Select Practice"
-        }
+    val currentName = remember(activePracticeId, allPractices) {
+        allPractices.find { it.id == activePracticeId }?.name ?: "No Practice Selected"
     }
 
     val syncState by viewModel.repository.syncState.collectAsState()
@@ -132,13 +127,8 @@ fun TodayScreen(
     val gayatriColorName by viewModel.gayatriColor.collectAsState()
     val gayatriColor = getMantraColor(gayatriColorName)
 
-    val activeMantraColor = if (activePracticeId == com.example.ui.GAYATRI_PRACTICE_ID && allPractices.any { it.name == gayatriName }) {
-        gayatriColor
-    } else if (activePracticeId != com.example.ui.GAYATRI_PRACTICE_ID) {
-        val themeColorStr = allPractices.find { it.id == activePracticeId }?.themeColor ?: "teal"
-        getMantraColor(themeColorStr)
-    } else {
-        MaterialTheme.colorScheme.primary
+    val activeMantraColor = allPractices.find { it.id == activePracticeId }?.themeColor.let { themeStr ->
+        if (themeStr != null) getMantraColor(themeStr) else MaterialTheme.colorScheme.primary
     }
 
     val activeMantraContainerColor = activeMantraColor.copy(alpha = 0.12f)
@@ -249,28 +239,26 @@ fun TodayScreen(
                 }
 
                 // Settings icon on the right
-                IconButton(
-                    onClick = {
-                        if (activePracticeId == com.example.ui.GAYATRI_PRACTICE_ID) {
-                            showGayatriEditDialog = true
-                        } else {
+                if (allPractices.any { it.id == activePracticeId }) {
+                    IconButton(
+                        onClick = {
                             showEditDialog = true
-                        }
-                    },
-                    modifier = Modifier
-                        .align(Alignment.CenterEnd)
-                        .padding(end = 4.dp)
-                        .size(36.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Settings,
-                        contentDescription = "Configure Current Mantra",
-                        tint = activeMantraColor.copy(alpha = 0.7f),
-                        modifier = Modifier.size(20.dp)
-                    )
+                        },
+                        modifier = Modifier
+                            .align(Alignment.CenterEnd)
+                            .padding(end = 4.dp)
+                            .size(36.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Settings,
+                            contentDescription = "Configure Current Mantra",
+                            tint = activeMantraColor.copy(alpha = 0.7f),
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
                 }
 
-                if (showEditDialog && activePracticeId != com.example.ui.GAYATRI_PRACTICE_ID) {
+                if (showEditDialog) {
                     val activePractice = allPractices.find { it.id == activePracticeId }
                     if (activePractice != null) {
                         EditMantraDialog(
@@ -289,22 +277,6 @@ fun TodayScreen(
                             }
                         )
                     }
-                }
-
-                if (showGayatriEditDialog && activePracticeId == com.example.ui.GAYATRI_PRACTICE_ID) {
-                    EditGayatriDialog(
-                        currentName = gayatriName,
-                        currentColor = gayatriColorName,
-                        isDefaultMantra = defaultPracticeId == com.example.ui.GAYATRI_PRACTICE_ID,
-                        onDismiss = { showGayatriEditDialog = false },
-                        onSave = { newName, newColor, isDef ->
-                            viewModel.setGayatriName(newName)
-                            viewModel.setGayatriColor(newColor)
-                            if (isDef) viewModel.setDefaultPractice(com.example.ui.GAYATRI_PRACTICE_ID)
-                            else if (defaultPracticeId == com.example.ui.GAYATRI_PRACTICE_ID) viewModel.setDefaultPractice(-1L)
-                            showGayatriEditDialog = false
-                        }
-                    )
                 }
             }
 
@@ -335,9 +307,19 @@ fun TodayScreen(
             Spacer(modifier = Modifier.height(4.dp))
 
             // Subtle progress indicator: "X/3 Sandhyas completed"
-            if (activePracticeId == com.example.ui.GAYATRI_PRACTICE_ID) {
+            val currentPracticeInfo = allPractices.find { it.id == activePracticeId }
+            if (currentPracticeInfo?.practiceType == "SANDHYA") {
+                val todayCustomEntry = viewModel.activeCustomEntry.collectAsState().value
+                var customCompletedSandhyas = 0
+                if (todayCustomEntry != null) {
+                    if (todayCustomEntry.morningCount > 0 || todayCustomEntry.morningCount == -1) customCompletedSandhyas++
+                    if (todayCustomEntry.afternoonCount > 0 || todayCustomEntry.afternoonCount == -1) customCompletedSandhyas++
+                    if (todayCustomEntry.eveningCount > 0 || todayCustomEntry.eveningCount == -1) customCompletedSandhyas++
+                }
+                val totalSandhyasRequired = listOf(currentPracticeInfo.isMorningEnabled, currentPracticeInfo.isMiddayEnabled, currentPracticeInfo.isEveningEnabled).count { it }
+
                 Text(
-                    text = "$completedSandhyas/3 Sandhyas completed",
+                    text = "$customCompletedSandhyas/$totalSandhyasRequired Sandhyas completed",
                     style = MaterialTheme.typography.bodyMedium.copy(
                         fontWeight = FontWeight.Medium,
                         letterSpacing = 0.5.sp
@@ -410,25 +392,31 @@ fun TodayScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            if (activePracticeId == com.example.ui.GAYATRI_PRACTICE_ID) {
-                GayatriSpecificContent(
-                    viewModel = viewModel,
-                    stats = stats,
-                    todayEntry = todayEntry,
-                    isPunascharanaEnabled = isPunascharanaEnabled,
-                    completedSandhyas = completedSandhyas,
-                    onShowPunasModal = { showPunasModal = true },
-                    accentColor = activeMantraColor
-                )
+            val currentPractice = allPractices.find { it.id == activePracticeId }
+            val resolvedEntry = if (activePracticeId == com.example.ui.GAYATRI_PRACTICE_ID) {
+                todayEntry?.let { gEntry ->
+                    com.example.data.CustomPracticeEntry(
+                        practiceId = com.example.ui.GAYATRI_PRACTICE_ID,
+                        date = todayDate,
+                        morningCount = gEntry.pratahSandhyaCount,
+                        afternoonCount = gEntry.madhyahnikaSandhyaCount,
+                        eveningCount = gEntry.sayamSandhyaCount,
+                        morningPunasCount = gEntry.pratahPunascharanaCount,
+                        afternoonPunasCount = gEntry.madhyahnikaPunascharanaCount,
+                        eveningPunasCount = gEntry.sayamPunascharanaCount,
+                        updatedAt = gEntry.updatedAt
+                    )
+                }
             } else {
-                val currentPractice = allPractices.find { it.id == activePracticeId }
-                SimplePracticeContent(
-                    viewModel = viewModel,
-                    practice = currentPractice,
-                    entry = activeCustomEntry,
-                    date = viewModel.getTodayDateString()
-                )
+                activeCustomEntry
             }
+
+            SimplePracticeContent(
+                viewModel = viewModel,
+                practice = currentPractice,
+                entry = resolvedEntry,
+                date = todayDate
+            )
             
             Spacer(modifier = Modifier.height(24.dp))
         }
@@ -465,17 +453,52 @@ fun SimplePracticeContent(
     entry: com.example.data.CustomPracticeEntry?,
     date: String
 ) {
-    if (practice == null) return
+    if (practice == null) {
+        Column(
+            modifier = Modifier.fillMaxWidth().padding(32.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            Icon(Icons.Default.Spa, contentDescription = null, modifier = Modifier.size(64.dp), tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.2f))
+            Spacer(modifier = Modifier.height(16.dp))
+            Text("No Practice Selected", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f))
+            Spacer(modifier = Modifier.height(8.dp))
+            Text("Select a practice from the dropdown above or add a new custom practice.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f), textAlign = TextAlign.Center)
+        }
+        return
+    }
     val count = entry?.count ?: 0
     val target = practice.defaultTarget
     val themeColor = practice.themeColor
     val mantraColor = getMantraColor(themeColor)
 
+    val isGlobalPunasEnabled by viewModel.isPunascharanaEnabled.collectAsState()
+    val isPunascharanaEnabledForPractice = practice.isPunascharanaEnabled && isGlobalPunasEnabled
+
+    val isGayatri = practice.id == com.example.ui.GAYATRI_PRACTICE_ID
+
     // Calculate lifetime count
     val practiceTotals by viewModel.allPracticeTotals.collectAsState(initial = emptyMap())
-    val lifetimeTotal = remember(practice.id, practiceTotals) {
-        val totalFromDatabase = practiceTotals[practice.id] ?: 0
-        practice.initialLifetimeCount + totalFromDatabase
+    val gayatriStats by viewModel.getStatisticsFlow().collectAsState(
+        initial = com.example.ui.JapaViewModel.Stats(0, 0, viewModel.prefs.getInitialLifetimeCount(), 0, 0)
+    )
+
+    val lifetimeTotal = remember(practice.id, practiceTotals, gayatriStats) {
+        if (isGayatri) {
+            gayatriStats.lifetimeTotal
+        } else {
+            val totalFromDatabase = practiceTotals[practice.id] ?: 0
+            practice.initialLifetimeCount + totalFromDatabase
+        }
+    }
+
+    val practicePunasTotals by viewModel.allPracticePunasTotals.collectAsState(initial = emptyMap())
+    val lifetimePunasTotal = remember(practice.id, practicePunasTotals, gayatriStats) {
+        if (isGayatri) {
+            gayatriStats.lifetimePunascharanaTotal
+        } else {
+            (practicePunasTotals[practice.id] ?: 0).toLong()
+        }
     }
 
     if (practice.practiceType == "SANDHYA") {
@@ -507,20 +530,40 @@ fun SimplePracticeContent(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(vertical = 24.dp, horizontal = 16.dp),
+                        .padding(vertical = 24.dp, horizontal = 0.dp),
                     horizontalArrangement = Arrangement.SpaceEvenly,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text("TODAY'S JAPA", style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold, letterSpacing = 0.5.sp), color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f))
-                        Spacer(modifier = Modifier.height(8.dp))
-                        AnimatedCounterText(value = totalToday, style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold, fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace), color = mantraColor)
-                    }
-                    Box(modifier = Modifier.width(1.dp).height(40.dp).background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.15f)))
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text("LIFETIME TOTAL", style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold, letterSpacing = 0.5.sp), color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f))
-                        Spacer(modifier = Modifier.height(8.dp))
-                        AnimatedCounterLongText(value = lifetimeTotal, style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold, fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace), color = mantraColor)
+                    if (isPunascharanaEnabledForPractice) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.weight(1f)) {
+                            Text("TODAY'S JAPA", style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold, letterSpacing = 0.5.sp), color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f), textAlign = TextAlign.Center)
+                            Spacer(modifier = Modifier.height(8.dp))
+                            AnimatedCounterText(value = totalToday, style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold, fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace), color = mantraColor)
+                        }
+                        Box(modifier = Modifier.width(1.dp).height(40.dp).background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.15f)))
+                        Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.weight(1f)) {
+                            Text("LIFETIME TOTAL", style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold, letterSpacing = 0.5.sp), color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f), textAlign = TextAlign.Center)
+                            Spacer(modifier = Modifier.height(8.dp))
+                            AnimatedCounterLongText(value = lifetimeTotal, style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold, fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace), color = mantraColor)
+                        }
+                        Box(modifier = Modifier.width(1.dp).height(40.dp).background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.15f)))
+                        Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.weight(1f)) {
+                            Text("PUNASCHARANA", style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold, letterSpacing = 0.5.sp), color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f), textAlign = TextAlign.Center)
+                            Spacer(modifier = Modifier.height(8.dp))
+                            AnimatedCounterLongText(value = lifetimePunasTotal.toLong(), style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold, fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace), color = mantraColor)
+                        }
+                    } else {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.weight(1f)) {
+                            Text("TODAY'S JAPA", style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold, letterSpacing = 1.sp), color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f), textAlign = TextAlign.Center)
+                            Spacer(modifier = Modifier.height(8.dp))
+                            AnimatedCounterText(value = totalToday, style = MaterialTheme.typography.headlineLarge.copy(fontWeight = FontWeight.Bold, fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace), color = mantraColor)
+                        }
+                        Box(modifier = Modifier.width(1.dp).height(40.dp).background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.15f)))
+                        Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.weight(1f)) {
+                            Text("LIFETIME TOTAL", style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold, letterSpacing = 1.sp), color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f), textAlign = TextAlign.Center)
+                            Spacer(modifier = Modifier.height(8.dp))
+                            AnimatedCounterLongText(value = lifetimeTotal, style = MaterialTheme.typography.headlineLarge.copy(fontWeight = FontWeight.Bold, fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace), color = mantraColor)
+                        }
                     }
                 }
             }
@@ -532,21 +575,22 @@ fun SimplePracticeContent(
                     count = morningCount,
                     punasCount = morningPunas,
                     icon = { Icon(Icons.Outlined.WbTwilight, "Morning Icon", tint = Color(0xFFFF9800), modifier = Modifier.size(28.dp)) },
-                    onCountUpdated = { newCount ->                
+                    onSave = { newCount, newPunas ->
                         if (practice.id == -1L) {
-                            viewModel.updateGayatriSandhyaCounts(date, newCount, afternoonCount, eveningCount, morningPunas, afternoonPunas, eveningPunas)
+                            viewModel.updateGayatriSandhyaCounts(date, newCount, afternoonCount, eveningCount, newPunas, afternoonPunas, eveningPunas)
                         } else {
-                            viewModel.updateCustomPracticeSandhyaCounts(practice.id, date, newCount, afternoonCount, eveningCount, morningPunas, afternoonPunas, eveningPunas)
+                            viewModel.updateCustomPracticeSandhyaCounts(practice.id, date, newCount, afternoonCount, eveningCount, newPunas, afternoonPunas, eveningPunas)
                         }
                     },
-                    onPunasUpdated = { newPunas ->
-                        viewModel.updateCustomPracticeSandhyaCounts(practice.id, date, morningCount, afternoonCount, eveningCount, newPunas, afternoonPunas, eveningPunas)
-                    },
                     onClearAll = {
-                        viewModel.updateCustomPracticeSandhyaCounts(practice.id, date, 0, afternoonCount, eveningCount, 0, afternoonPunas, eveningPunas)
+                        if (practice.id == -1L) {
+                            viewModel.updateGayatriSandhyaCounts(date, 0, afternoonCount, eveningCount, 0, afternoonPunas, eveningPunas)
+                        } else {
+                            viewModel.updateCustomPracticeSandhyaCounts(practice.id, date, 0, afternoonCount, eveningCount, 0, afternoonPunas, eveningPunas)
+                        }
                     },
                     tagPrefix = "custom_morning",
-                    isPunascharanaEnabled = practice.isPunascharanaEnabled,
+                    isPunascharanaEnabled = isPunascharanaEnabledForPractice,
                     accentColor = mantraColor
                 )
             }
@@ -558,18 +602,11 @@ fun SimplePracticeContent(
                     count = afternoonCount,
                     punasCount = afternoonPunas,
                     icon = { Icon(Icons.Outlined.WbSunny, "Midday Icon", tint = Color(0xFFF1C40F), modifier = Modifier.size(28.dp)) },
-                    onCountUpdated = { newCount ->
+                    onSave = { newCount, newPunas ->
                         if (practice.id == -1L) {
-                            viewModel.updateGayatriSandhyaCounts(date, morningCount, newCount, eveningCount, morningPunas, afternoonPunas, eveningPunas)
+                            viewModel.updateGayatriSandhyaCounts(date, morningCount, newCount, eveningCount, morningPunas, newPunas, eveningPunas)
                         } else {
-                            viewModel.updateCustomPracticeSandhyaCounts(practice.id, date, morningCount, newCount, eveningCount, morningPunas, afternoonPunas, eveningPunas)
-                        }
-                    },
-                    onPunasUpdated = { newPunas ->
-                        if (practice.id == -1L) {
-                            viewModel.updateGayatriSandhyaCounts(date, morningCount, afternoonCount, eveningCount, morningPunas, newPunas, eveningPunas)
-                        } else {
-                            viewModel.updateCustomPracticeSandhyaCounts(practice.id, date, morningCount, afternoonCount, eveningCount, morningPunas, newPunas, eveningPunas)
+                            viewModel.updateCustomPracticeSandhyaCounts(practice.id, date, morningCount, newCount, eveningCount, morningPunas, newPunas, eveningPunas)
                         }
                     },
                     onClearAll = {
@@ -580,7 +617,7 @@ fun SimplePracticeContent(
                         }
                     },
                     tagPrefix = "custom_afternoon",
-                    isPunascharanaEnabled = practice.isPunascharanaEnabled,
+                    isPunascharanaEnabled = isPunascharanaEnabledForPractice,
                     accentColor = mantraColor
                 )
             }
@@ -592,18 +629,11 @@ fun SimplePracticeContent(
                     count = eveningCount,
                     punasCount = eveningPunas,
                     icon = { Icon(Icons.Outlined.Brightness4, "Evening Icon", tint = Color(0xFF9B59B6), modifier = Modifier.size(28.dp)) },
-                    onCountUpdated = { newCount ->
+                    onSave = { newCount, newPunas ->
                         if (practice.id == -1L) {
-                            viewModel.updateGayatriSandhyaCounts(date, morningCount, afternoonCount, newCount, morningPunas, afternoonPunas, eveningPunas)
+                            viewModel.updateGayatriSandhyaCounts(date, morningCount, afternoonCount, newCount, morningPunas, afternoonPunas, newPunas)
                         } else {
-                            viewModel.updateCustomPracticeSandhyaCounts(practice.id, date, morningCount, afternoonCount, newCount, morningPunas, afternoonPunas, eveningPunas)
-                        }
-                    },
-                    onPunasUpdated = { newPunas ->
-                        if (practice.id == -1L) {
-                            viewModel.updateGayatriSandhyaCounts(date, morningCount, afternoonCount, eveningCount, morningPunas, afternoonPunas, newPunas)
-                        } else {
-                            viewModel.updateCustomPracticeSandhyaCounts(practice.id, date, morningCount, afternoonCount, eveningCount, morningPunas, afternoonPunas, newPunas)
+                            viewModel.updateCustomPracticeSandhyaCounts(practice.id, date, morningCount, afternoonCount, newCount, morningPunas, afternoonPunas, newPunas)
                         }
                     },
                     onClearAll = {
@@ -614,7 +644,7 @@ fun SimplePracticeContent(
                         }
                     },
                     tagPrefix = "custom_evening",
-                    isPunascharanaEnabled = practice.isPunascharanaEnabled,
+                    isPunascharanaEnabled = isPunascharanaEnabledForPractice,
                     accentColor = mantraColor
                 )
             }
@@ -625,6 +655,7 @@ fun SimplePracticeContent(
         val label = if (isContinuous) "Today's Japa" else "Today's Recitations"
 
         var showCustomAddDialog by remember { mutableStateOf(false) }
+        var localCount by remember(practice.id) { mutableStateOf(0) }
 
         Column(
             modifier = Modifier
@@ -674,7 +705,7 @@ fun SimplePracticeContent(
                             )
                             Spacer(modifier = Modifier.height(4.dp))
                             Text(
-                                text = String.format("%,d", lifetimeTotal),
+                                text = String.format("%,d", lifetimeTotal + localCount),
                                 style = MaterialTheme.typography.titleMedium.copy(
                                     fontWeight = FontWeight.ExtraBold,
                                     fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
@@ -685,12 +716,15 @@ fun SimplePracticeContent(
 
                         // Right: Circular progress indicator if target configured
                         if (target > 0) {
-                            val progress = remember(count, target) {
-                                (count.toFloat() / target.toFloat()).coerceIn(0f, 1f)
-                            }
+                            val targetProgress = ((count + localCount).toFloat() / target.toFloat()).coerceIn(0f, 1f)
+                            val progress by androidx.compose.animation.core.animateFloatAsState(
+                                targetValue = targetProgress,
+                                animationSpec = androidx.compose.animation.core.tween(durationMillis = 500),
+                                label = "ProgressAnimation"
+                            )
                             JapaProgressCircle(
                                 progress = progress,
-                                current = count,
+                                current = count + localCount,
                                 target = target,
                                 color = mantraColor
                             )
@@ -704,7 +738,7 @@ fun SimplePracticeContent(
                                 )
                                 Spacer(modifier = Modifier.height(4.dp))
                                 Text(
-                                    text = "$count",
+                                    text = "${count + localCount}",
                                     style = MaterialTheme.typography.displaySmall.copy(
                                         fontWeight = FontWeight.ExtraBold,
                                         fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
@@ -729,7 +763,7 @@ fun SimplePracticeContent(
                 border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
             ) {
                 Column(modifier = Modifier.padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                    var textInput by remember(count) { mutableStateOf(if (count <= 0) "" else count.toString()) }
+                    var textInput by remember(localCount) { mutableStateOf(if (localCount <= 0) "" else localCount.toString()) }
 
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -739,18 +773,17 @@ fun SimplePracticeContent(
                         // Minus Button
                         IconButton(
                             onClick = {
-                                if (count > 0) {
-                                    val newCount = count - 1
-                                    viewModel.updateCustomPracticeCount(practice.id, date, newCount)
+                                if (localCount > 0) {
+                                    localCount -= 1
                                 }
                             },
                             modifier = Modifier
                                 .size(56.dp)
                                 .background(MaterialTheme.colorScheme.surfaceVariant, shape = CircleShape)
                                 .border(1.dp, MaterialTheme.colorScheme.outline, CircleShape),
-                            enabled = count > 0
+                            enabled = localCount > 0
                         ) {
-                            Icon(Icons.Default.Remove, "Decrement", tint = if (count > 0) MaterialTheme.colorScheme.onSurface else Color.Gray)
+                            Icon(Icons.Default.Remove, "Decrement", tint = if (localCount > 0) MaterialTheme.colorScheme.onSurface else Color.Gray)
                         }
 
                         // TextField direct counter input
@@ -759,11 +792,10 @@ fun SimplePracticeContent(
                             onValueChange = { input ->
                                 if (input.isEmpty()) {
                                     textInput = ""
-                                    viewModel.updateCustomPracticeCount(practice.id, date, 0)
+                                    localCount = 0
                                 } else if (input.all { it.isDigit() }) {
                                     textInput = input
-                                    val parsed = input.toIntOrNull() ?: 0
-                                    viewModel.updateCustomPracticeCount(practice.id, date, parsed)
+                                    localCount = input.toIntOrNull() ?: 0
                                 }
                             },
                             modifier = Modifier
@@ -789,7 +821,7 @@ fun SimplePracticeContent(
                         IconButton(
                             onClick = {
                                 val increment = if (practice.practiceType == "RECITATION") practice.incrementValue else 1
-                                viewModel.updateCustomPracticeCount(practice.id, date, count + increment)
+                                localCount += increment
                             },
                             modifier = Modifier
                                 .size(56.dp)
@@ -801,6 +833,34 @@ fun SimplePracticeContent(
                     }
 
                     Spacer(modifier = Modifier.height(20.dp))
+
+                    var isSaving by remember { mutableStateOf(false) }
+                    val buttonScope = rememberCoroutineScope()
+
+                    AnimatedVisibility(visible = localCount > 0) {
+                        Button(
+                            onClick = { 
+                                if (isSaving) return@Button
+                                isSaving = true
+                                buttonScope.launch {
+                                    viewModel.updateCustomPracticeCount(practice.id, date, count + localCount)
+                                    viewModel.logJapaSession(practice.id, localCount, "Saved count")
+                                    localCount = 0
+                                    isSaving = false
+                                }
+                            },
+                            enabled = !isSaving,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(52.dp)
+                                .padding(bottom = 12.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
+                            shape = RoundedCornerShape(26.dp)
+                        ) {
+                            Icon(Icons.Default.Save, null, modifier = Modifier.padding(end = 8.dp))
+                            Text(if (isSaving) "Saving..." else "Save Session", style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold))
+                        }
+                    }
 
                     // Buttons/Chips panel
                     if (practice.practiceType == "CONTINUOUS") {
@@ -820,8 +880,7 @@ fun SimplePracticeContent(
                                 InputChip(
                                     selected = false,
                                     onClick = {
-                                        viewModel.updateCustomPracticeCount(practice.id, date, count + inc)
-                                        viewModel.logJapaSession(practice.id, inc, "Session")
+                                        localCount += inc
                                     },
                                     label = { Text("+$inc", fontWeight = FontWeight.Bold) },
                                     modifier = Modifier.padding(horizontal = 4.dp).testTag("quick_add_chip_$inc")
@@ -842,8 +901,7 @@ fun SimplePracticeContent(
                         Button(
                             onClick = {
                                 val inc = practice.incrementValue
-                                viewModel.updateCustomPracticeCount(practice.id, date, count + inc)
-                                viewModel.logJapaSession(practice.id, inc, "Recitation")
+                                localCount += inc
                             },
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -857,12 +915,14 @@ fun SimplePracticeContent(
                         }
                     }
                     
-                    if (count > 0) {
+                    if (localCount > 0) {
                         Spacer(modifier = Modifier.height(12.dp))
                         TextButton(
-                            onClick = { viewModel.updateCustomPracticeCount(practice.id, date, 0) }
+                            onClick = { 
+                                localCount = 0
+                            }
                         ) {
-                            Text("Reset Today's Progress", color = MaterialTheme.colorScheme.error)
+                            Text("Reset Active Sitting", color = MaterialTheme.colorScheme.error)
                         }
                     }
                 }
@@ -903,8 +963,7 @@ fun SimplePracticeContent(
                         onClick = {
                             val amt = customAmtString.toIntOrNull() ?: 0
                             if (amt > 0) {
-                                viewModel.updateCustomPracticeCount(practice.id, date, count + amt)
-                                viewModel.logJapaSession(practice.id, amt, "Custom Sitting")
+                                localCount += amt
                             }
                             showCustomAddDialog = false
                         },
@@ -1136,18 +1195,10 @@ fun GayatriSpecificContent(
                             modifier = Modifier.size(28.dp)
                         )
                     },
-                    onCountUpdated = { newCount ->
+                    onSave = { newCount, newPunas ->
                         viewModel.updateCounts(
                             date = entry.date,
                             morning = newCount,
-                            afternoon = entry.madhyahnikaSandhyaCount,
-                            evening = entry.sayamSandhyaCount
-                        )
-                    },
-                    onPunasUpdated = { newPunas ->
-                        viewModel.updateCounts(
-                            date = entry.date,
-                            morning = entry.pratahSandhyaCount,
                             afternoon = entry.madhyahnikaSandhyaCount,
                             evening = entry.sayamSandhyaCount,
                             pratahPunas = newPunas
@@ -1180,19 +1231,11 @@ fun GayatriSpecificContent(
                             modifier = Modifier.size(28.dp)
                         )
                     },
-                    onCountUpdated = { newCount ->
+                    onSave = { newCount, newPunas ->
                         viewModel.updateCounts(
                             date = entry.date,
                             morning = entry.pratahSandhyaCount,
                             afternoon = newCount,
-                            evening = entry.sayamSandhyaCount
-                        )
-                    },
-                    onPunasUpdated = { newPunas ->
-                        viewModel.updateCounts(
-                            date = entry.date,
-                            morning = entry.pratahSandhyaCount,
-                            afternoon = entry.madhyahnikaSandhyaCount,
                             evening = entry.sayamSandhyaCount,
                             madhyahnikaPunas = newPunas
                         )
@@ -1224,20 +1267,12 @@ fun GayatriSpecificContent(
                             modifier = Modifier.size(28.dp)
                         )
                     },
-                    onCountUpdated = { newCount ->
+                    onSave = { newCount, newPunas ->
                         viewModel.updateCounts(
                             date = entry.date,
                             morning = entry.pratahSandhyaCount,
                             afternoon = entry.madhyahnikaSandhyaCount,
-                            evening = newCount
-                        )
-                    },
-                    onPunasUpdated = { newPunas ->
-                        viewModel.updateCounts(
-                            date = entry.date,
-                            morning = entry.pratahSandhyaCount,
-                            afternoon = entry.madhyahnikaSandhyaCount,
-                            evening = entry.sayamSandhyaCount,
+                            evening = newCount,
                             sayamPunas = newPunas
                         )
                     },
@@ -1310,18 +1345,20 @@ fun SandhyaIntervalCard(
     count: Int,
     punasCount: Int,
     icon: @Composable () -> Unit,
-    onCountUpdated: (Int) -> Unit,
-    onPunasUpdated: (Int) -> Unit,
+    onSave: (Int, Int) -> Unit,
     onClearAll: () -> Unit,
     tagPrefix: String,
     isPunascharanaEnabled: Boolean = true,
     accentColor: Color = MaterialTheme.colorScheme.primary,
     modifier: Modifier = Modifier
 ) {
-    // Keep local buffer of raw text inputs for precise fluid editing
-    var textInput by remember(count) { mutableStateOf(count.toString()) }
     var isPunasExpanded by remember { mutableStateOf(punasCount > 0) }
     var showCustomAddDialog by remember { mutableStateOf(false) }
+
+    // Local accumulators
+    var localCount by remember(count) { mutableStateOf(count) }
+    var localPunasCount by remember(punasCount) { mutableStateOf(punasCount) }
+    var textInput by remember(localCount) { mutableStateOf(if (localCount <= 0) "" else localCount.toString()) }
 
     // Synchronize expansion with changes to punasCount
     LaunchedEffect(punasCount) {
@@ -1361,7 +1398,7 @@ fun SandhyaIntervalCard(
 
                 // Total display
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    if (count == -1) {
+                    if (localCount == -1) {
                         SuggestionChip(
                             onClick = {},
                             label = { Text("PASSED", fontWeight = FontWeight.Bold, fontSize = 11.sp) },
@@ -1377,7 +1414,7 @@ fun SandhyaIntervalCard(
                         )
                     } else {
                         AnimatedCounterText(
-                            value = count,
+                            value = localCount,
                             style = MaterialTheme.typography.headlineMedium.copy(
                                 fontWeight = FontWeight.Bold,
                                 color = accentColor
@@ -1385,9 +1422,9 @@ fun SandhyaIntervalCard(
                             color = accentColor
                         )
                     }
-                    if (isPunascharanaEnabled && punasCount > 0) {
+                    if (isPunascharanaEnabled && localPunasCount > 0) {
                         Text(
-                            text = " (+$punasCount)",
+                            text = " (+$localPunasCount)",
                             style = MaterialTheme.typography.bodyLarge.copy(
                                 fontWeight = FontWeight.Bold,
                                 color = accentColor.copy(alpha = 0.8f)
@@ -1408,8 +1445,8 @@ fun SandhyaIntervalCard(
                 // Minus Target
                 IconButton(
                     onClick = {
-                        if (count > 0) {
-                            onCountUpdated((count - 1).coerceAtLeast(0))
+                        if (localCount > 0) {
+                            localCount = (localCount - 1).coerceAtLeast(0)
                         }
                     },
                     modifier = Modifier
@@ -1420,12 +1457,12 @@ fun SandhyaIntervalCard(
                         )
                         .border(1.dp, MaterialTheme.colorScheme.outline, CircleShape)
                         .testTag("${tagPrefix}_minus"),
-                    enabled = count > 0
+                    enabled = localCount > 0
                 ) {
                     Icon(
                         Icons.Default.Remove,
                         contentDescription = "Decrement",
-                        tint = if (count > 0) MaterialTheme.colorScheme.onSurface else Color.Gray
+                        tint = if (localCount > 0) MaterialTheme.colorScheme.onSurface else Color.Gray
                     )
                 }
 
@@ -1435,11 +1472,11 @@ fun SandhyaIntervalCard(
                     onValueChange = { input ->
                         if (input.isEmpty()) {
                             textInput = ""
-                            onCountUpdated(0)
+                            localCount = 0
                         } else if (input.all { it.isDigit() }) {
                             textInput = input
                             val parsed = input.toIntOrNull() ?: 0
-                            onCountUpdated(parsed)
+                            localCount = parsed
                         }
                     },
                     modifier = Modifier
@@ -1465,8 +1502,8 @@ fun SandhyaIntervalCard(
                 // Plus Target
                 IconButton(
                     onClick = {
-                        val base = if (count == -1) 0 else count
-                        onCountUpdated(base + 1)
+                        val base = if (localCount == -1) 0 else localCount
+                        localCount = base + 1
                     },
                     modifier = Modifier
                         .size(48.dp)
@@ -1487,6 +1524,35 @@ fun SandhyaIntervalCard(
 
             Spacer(modifier = Modifier.height(16.dp))
 
+            AnimatedVisibility(visible = localCount != count || localPunasCount != punasCount) {
+                var isSaving by remember { mutableStateOf(false) }
+                val saveScope = rememberCoroutineScope()
+                Button(
+                    onClick = { 
+                        if (isSaving) return@Button
+                        isSaving = true
+                        saveScope.launch {
+                            var finalCount = localCount
+                            if (localCount != count && localCount == -1) {
+                                finalCount = -1
+                            }
+                            onSave(finalCount, localPunasCount)
+                            isSaving = false
+                        }
+                    },
+                    enabled = !isSaving,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(52.dp)
+                        .padding(bottom = 12.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = accentColor),
+                    shape = RoundedCornerShape(26.dp)
+                ) {
+                    Icon(Icons.Default.Save, null, modifier = Modifier.padding(end = 8.dp))
+                    Text(if (isSaving) "Saving..." else "Save", style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold))
+                }
+            }
+
              // Quick-add Increment Chips
              androidx.compose.foundation.lazy.LazyRow(
                  modifier = Modifier.fillMaxWidth().testTag("${tagPrefix}_increments_row"),
@@ -1503,8 +1569,8 @@ fun SandhyaIntervalCard(
 
                      Button(
                          onClick = {
-                             val base = if (count == -1) 0 else count
-                             onCountUpdated(base + inc)
+                             val base = if (localCount == -1) 0 else localCount
+                             localCount = base + inc
                          },
                          modifier = Modifier
                              .height(40.dp)
@@ -1567,8 +1633,8 @@ fun SandhyaIntervalCard(
                              onClick = {
                                  val amt = customAmtString.toIntOrNull() ?: 0
                                  if (amt > 0) {
-                                     val base = if (count == -1) 0 else count
-                                     onCountUpdated(base + amt)
+                                     val base = if (localCount == -1) 0 else localCount
+                                     localCount = base + amt
                                  }
                                  showCustomAddDialog = false
                              }
@@ -1587,16 +1653,20 @@ fun SandhyaIntervalCard(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.Center
             ) {
-                if (count == 0 && punasCount == 0) {
+                if (localCount == 0 && localPunasCount == 0 && count == 0 && punasCount == 0) {
                      TextButton(
-                         onClick = { onCountUpdated(-1) },
+                         onClick = { onSave(-1, 0) },
                          modifier = Modifier.fillMaxWidth().testTag("${tagPrefix}_pass_button")
                      ) {
                          Text("Pass (Skip for today)")
                      }
-                } else if (count > 0 || count == -1 || punasCount > 0) {
+                } else if (localCount > 0 || localCount == -1 || localPunasCount > 0) {
                      TextButton(
-                         onClick = { onClearAll() },
+                         onClick = { 
+                             localCount = 0 
+                             localPunasCount = 0
+                             onClearAll()
+                         },
                          modifier = Modifier.fillMaxWidth().testTag("${tagPrefix}_clear_button")
                      ) {
                          Text("Clear Count", color = MaterialTheme.colorScheme.error)
@@ -1640,8 +1710,8 @@ fun SandhyaIntervalCard(
                     exit = shrinkVertically(animationSpec = tween(220)) + fadeOut(animationSpec = tween(220))
                 ) {
                     PunascharanaAdjusterSection(
-                        punasCount = punasCount,
-                        onPunasUpdated = onPunasUpdated,
+                        punasCount = localPunasCount,
+                        onPunasUpdated = { newPunas -> localPunasCount = newPunas },
                         tagPrefix = "${tagPrefix}_punas",
                         accentColor = accentColor
                     )

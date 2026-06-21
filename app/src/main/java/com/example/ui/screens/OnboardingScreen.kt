@@ -381,6 +381,7 @@ fun OnboardingScreen(
 
                             Button(
                                 onClick = {
+                                    viewModel.setCompletedOnboarding(0) // Marks onboarded = true and syncs
                                     onOnboarded()
                                 },
                                 modifier = Modifier
@@ -600,7 +601,7 @@ fun ConfigurePracticeDialog(
     var morningEnabled by remember { mutableStateOf(practiceTemplate.isMorningEnabled) }
     var middayEnabled by remember { mutableStateOf(practiceTemplate.isMiddayEnabled) }
     var eveningEnabled by remember { mutableStateOf(practiceTemplate.isEveningEnabled) }
-    var punasEnabled by remember { mutableStateOf(practiceTemplate.isPunascharanaEnabled) }
+    var punasEnabled by remember { mutableStateOf(false) }
     var increment by remember { mutableStateOf(practiceTemplate.incrementValue.toString()) }
     var isSetAsDefault by remember { mutableStateOf(false) }
 

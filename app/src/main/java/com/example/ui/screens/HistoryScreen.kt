@@ -75,7 +75,7 @@ fun HistoryScreen(
 
     // Combined/Dynamic lifetime grand sum
     val combinedLifetimeTotal = remember(stats, allPractices, practiceTotals) {
-        val customTotal = allPractices.sumOf { practice ->
+        val customTotal = allPractices.filter { it.id != GAYATRI_PRACTICE_ID }.sumOf { practice ->
             practice.initialLifetimeCount + (practiceTotals[practice.id] ?: 0)
         }
         stats.lifetimeTotal + customTotal
@@ -277,7 +277,7 @@ fun HistoryScreen(
                 }
 
                 // Custom blocks
-                allPractices.forEach { practice ->
+                allPractices.filter { it.id != GAYATRI_PRACTICE_ID }.forEach { practice ->
                     val isSelected = selectedMantraId == practice.id
                     val color = getMantraColor(practice.themeColor)
                     val total = practice.initialLifetimeCount + (practiceTotals[practice.id] ?: 0)

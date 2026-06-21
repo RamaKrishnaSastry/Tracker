@@ -16,5 +16,5 @@ data class CustomPracticeEntry(
     val updatedAt: String
 ) {
     val dailyTotal: Int
-        get() = count + morningCount + afternoonCount + eveningCount + morningPunasCount + afternoonPunasCount + eveningPunasCount
+        get() = maxOf(0, count) + maxOf(0, morningCount) + maxOf(0, afternoonCount) + maxOf(0, eveningCount) + maxOf(0, morningPunasCount) + maxOf(0, afternoonPunasCount) + maxOf(0, eveningPunasCount)
 }

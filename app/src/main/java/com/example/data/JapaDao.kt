@@ -23,13 +23,13 @@ interface JapaDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertEntries(entries: List<JapaEntry>)
 
-    @Query("SELECT SUM(morningCount + afternoonCount + eveningCount + pratahPunascharanaCount + madhyahnikaPunascharanaCount + sayamPunascharanaCount) FROM japa_entries")
+    @Query("SELECT SUM(CASE WHEN morningCount > 0 THEN morningCount ELSE 0 END + CASE WHEN afternoonCount > 0 THEN afternoonCount ELSE 0 END + CASE WHEN eveningCount > 0 THEN eveningCount ELSE 0 END + CASE WHEN pratahPunascharanaCount > 0 THEN pratahPunascharanaCount ELSE 0 END + CASE WHEN madhyahnikaPunascharanaCount > 0 THEN madhyahnikaPunascharanaCount ELSE 0 END + CASE WHEN sayamPunascharanaCount > 0 THEN sayamPunascharanaCount ELSE 0 END) FROM japa_entries")
     fun getTotalCountFlow(): Flow<Int?>
 
-    @Query("SELECT SUM(morningCount + afternoonCount + eveningCount) FROM japa_entries")
+    @Query("SELECT SUM(CASE WHEN morningCount > 0 THEN morningCount ELSE 0 END + CASE WHEN afternoonCount > 0 THEN afternoonCount ELSE 0 END + CASE WHEN eveningCount > 0 THEN eveningCount ELSE 0 END) FROM japa_entries")
     fun getTotalSandhyaCountFlow(): Flow<Int?>
 
-    @Query("SELECT SUM(pratahPunascharanaCount + madhyahnikaPunascharanaCount + sayamPunascharanaCount) FROM japa_entries")
+    @Query("SELECT SUM(CASE WHEN pratahPunascharanaCount > 0 THEN pratahPunascharanaCount ELSE 0 END + CASE WHEN madhyahnikaPunascharanaCount > 0 THEN madhyahnikaPunascharanaCount ELSE 0 END + CASE WHEN sayamPunascharanaCount > 0 THEN sayamPunascharanaCount ELSE 0 END) FROM japa_entries")
     fun getTotalPunascharanaCountFlow(): Flow<Int?>
 
     @Query("DELETE FROM japa_entries")

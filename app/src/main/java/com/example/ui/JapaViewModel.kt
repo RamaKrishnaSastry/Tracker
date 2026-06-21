@@ -8,6 +8,7 @@ import com.example.api.*
 import com.example.data.*
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -39,17 +40,77 @@ class JapaViewModel(application: Application) : AndroidViewModel(application) {
     val activePracticeId: StateFlow<Long> = _activePracticeId.asStateFlow()
     val defaultPracticeId: StateFlow<Long> = prefs.defaultPracticeId
 
-    val allCustomPractices: StateFlow<List<CustomPractice>> = customPracticeDao.getAllPracticesFlow()
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+    private val gayatriMetaFlow = combine(gayatriName, gayatriColor, defaultPracticeId) { name, color, defaultId ->
+        Triple(name, color, defaultId)
+    }
 
-    val activeCustomPractices: StateFlow<List<CustomPractice>> = customPracticeDao.getActivePracticesFlow()
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+    val allCustomPractices: StateFlow<List<CustomPractice>> = combine(
+        customPracticeDao.getAllPracticesFlow(),
+        repository.allEntriesFlow,
+        activePracticeId,
+        gayatriMetaFlow
+    ) { customPractices, entries, activeId, meta ->
+        val (name, color, defaultId) = meta
+        val hasGayatriData = activeId == GAYATRI_PRACTICE_ID || 
+                             defaultId == GAYATRI_PRACTICE_ID || 
+                             entries.any { it.pratahSandhyaCount > 0 || it.madhyahnikaSandhyaCount > 0 || it.sayamSandhyaCount > 0 || it.pratahPunascharanaCount > 0 || it.madhyahnikaPunascharanaCount > 0 || it.sayamPunascharanaCount > 0 }
+        
+        if (hasGayatriData) {
+            val gayatriPractice = CustomPractice(
+                id = GAYATRI_PRACTICE_ID,
+                name = name,
+                practiceType = "SANDHYA",
+                themeColor = color,
+                isPunascharanaEnabled = true,
+                isMorningEnabled = true,
+                isMiddayEnabled = true,
+                isEveningEnabled = true,
+                quickAddValues = "10,24,28,54,108"
+            )
+            listOf(gayatriPractice) + customPractices
+        } else {
+            customPractices
+        }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val activeCustomPractices: StateFlow<List<CustomPractice>> = combine(
+        customPracticeDao.getActivePracticesFlow(),
+        repository.allEntriesFlow,
+        activePracticeId,
+        gayatriMetaFlow
+    ) { activeCustom, entries, activeId, meta ->
+        val (name, color, defaultId) = meta
+        val hasGayatriData = activeId == GAYATRI_PRACTICE_ID || 
+                             defaultId == GAYATRI_PRACTICE_ID || 
+                             entries.any { it.pratahSandhyaCount > 0 || it.madhyahnikaSandhyaCount > 0 || it.sayamSandhyaCount > 0 || it.pratahPunascharanaCount > 0 || it.madhyahnikaPunascharanaCount > 0 || it.sayamPunascharanaCount > 0 }
+        
+        if (hasGayatriData) {
+            val gayatriPractice = CustomPractice(
+                id = GAYATRI_PRACTICE_ID,
+                name = name,
+                practiceType = "SANDHYA",
+                themeColor = color,
+                isPunascharanaEnabled = true,
+                isMorningEnabled = true,
+                isMiddayEnabled = true,
+                isEveningEnabled = true,
+                quickAddValues = "10,24,28,54,108"
+            )
+            listOf(gayatriPractice) + activeCustom
+        } else {
+            activeCustom
+        }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val archivedCustomPractices: StateFlow<List<CustomPractice>> = customPracticeDao.getArchivedPracticesFlow()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val allPracticeTotals: StateFlow<Map<Long, Int>> = customPracticeDao.getAllPracticeTotalsFlow()
         .map { list -> list.associate { it.practiceId to it.totalCount } }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyMap())
+
+    val allPracticePunasTotals: StateFlow<Map<Long, Int>> = customPracticeDao.getAllPracticeTotalsFlow()
+        .map { list -> list.associate { it.practiceId to it.punasCount } }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyMap())
 
     val allEntries: StateFlow<List<JapaEntry>> = repository.allEntriesFlow
@@ -102,6 +163,9 @@ class JapaViewModel(application: Application) : AndroidViewModel(application) {
         _authError.value = null
     }
 
+    private val _todayDate = MutableStateFlow(getTodayDateString())
+    val todayDate: StateFlow<String> = _todayDate.asStateFlow()
+
     init {
         ensureTodayEntryExists()
         
@@ -118,6 +182,17 @@ class JapaViewModel(application: Application) : AndroidViewModel(application) {
         }
 
         viewModelScope.launch {
+            if (_activePracticeId.value == -1L && prefs.isOnboarded()) {
+                activeCustomPractices.firstOrNull { it.isNotEmpty() }?.let { practices ->
+                    if (_activePracticeId.value == -1L) {
+                        _activePracticeId.value = practices.first().id
+                        prefs.setActivePracticeId(practices.first().id)
+                    }
+                }
+            }
+        }
+
+        viewModelScope.launch {
             if (prefs.isOnboarded()) {
                 authManager.checkCurrentSession {
                     viewModelScope.launch {
@@ -127,12 +202,44 @@ class JapaViewModel(application: Application) : AndroidViewModel(application) {
             }
         }
         
+        // Update todayDate
         viewModelScope.launch {
-            activePracticeId.collect { pid ->
-                if (pid != GAYATRI_PRACTICE_ID) {
-                    customPracticeDao.getEntryByDateFlow(pid, getTodayDateString()).collect {
-                        _activeCustomEntry.value = it
+            while (true) {
+                delay(60000) // Check every minute
+                val newDate = getTodayDateString()
+                if (newDate != _todayDate.value) {
+                    _todayDate.value = newDate
+                    ensureTodayEntryExists()
+                }
+            }
+        }
+        
+        // Setup todayEntry continuous listener that scales reactively with todayDate
+        var todayEntryJob: kotlinx.coroutines.Job? = null
+        viewModelScope.launch {
+            _todayDate.collect { todayStr ->
+                todayEntryJob?.cancel()
+                todayEntryJob = launch {
+                    dao.getEntryByDateFlow(todayStr).collect {
+                        _todayEntry.value = it
                     }
+                }
+            }
+        }
+        
+        // Setup active custom entry continuous listener, eliminating blocking nested collections
+        var customTrackingJob: kotlinx.coroutines.Job? = null
+        viewModelScope.launch {
+            combine(activePracticeId, todayDate) { pid, date -> pid to date }.collect { (pid, date) ->
+                customTrackingJob?.cancel()
+                if (pid != GAYATRI_PRACTICE_ID) {
+                    customTrackingJob = launch {
+                        customPracticeDao.getEntryByDateFlow(pid, date).collect {
+                            _activeCustomEntry.value = it
+                        }
+                    }
+                } else {
+                    _activeCustomEntry.value = null
                 }
             }
         }
@@ -404,10 +511,6 @@ class JapaViewModel(application: Application) : AndroidViewModel(application) {
                 )
                 dao.insertOrUpdate(newEntry)
                 Log.d(TAG, "Auto-created fresh JapaEntry for today: $todayStr")
-            }
-            // Listen continuously to today's entry for instant reactive updates in the main dashboard view
-            dao.getEntryByDateFlow(todayStr).collect {
-                _todayEntry.value = it
             }
         }
     }
