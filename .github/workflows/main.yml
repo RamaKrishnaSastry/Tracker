@@ -4,6 +4,11 @@ on: [push, workflow_dispatch]
 jobs:
   build:
     runs-on: ubuntu-latest
+    # UNCOMMENT & EDIT the line below if your files are inside a subfolder:
+    # defaults:
+    #   run:
+    #     working-directory: ./YOUR_SUBFOLDER_NAME
+
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
@@ -13,13 +18,22 @@ jobs:
         with:
           distribution: 'temurin'
           java-version: '17'
-          cache: 'gradle' # Automatically caches dependencies to stop timeouts
+          cache: 'gradle'
 
+      # This step will now safely skip if gradlew is still missing to see if the build can continue
       - name: Fix Windows Line Endings (CRLF to LF)
-        run: sed -i 's/\r$//' gradlew
+        run: |
+          if [ -f gradlew ]; then
+            sed -i 's/\r$//' gradlew
+          else
+            echo "gradlew not found in current directory, skipping line ending fix."
+          fi
 
       - name: Grant Execute Permission for Gradlew
-        run: chmod +x ./gradlew
+        run: |
+          if [ -f gradlew ]; then
+            chmod +x ./gradlew
+          fi
 
       - name: Run Gradle Clean Build
         run: ./gradlew clean
@@ -31,4 +45,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: compiled-android-apk
-          path: app/build/outputs/apk/debug/*.apk
+          path: "**/build/outputs/apk/debug/*.apk" # Search globally for the APK
