@@ -24,6 +24,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
@@ -61,6 +62,23 @@ fun TodayScreen(
     val gayatriName by viewModel.gayatriName.collectAsState()
     val defaultPracticeId by viewModel.defaultPracticeId.collectAsState()
     val stats by viewModel.statistics.collectAsState()
+    val weeklySankalpaTarget by viewModel.weeklySankalpaTarget.collectAsState()
+    val allEntries by viewModel.allEntries.collectAsState()
+    val allCustomEntries by viewModel.allCustomPracticeEntries.collectAsState()
+
+    val weeklyCount = remember(allEntries, allCustomEntries, todayDate) {
+        val cal = Calendar.getInstance()
+        cal.firstDayOfWeek = Calendar.MONDAY
+        cal.set(Calendar.DAY_OF_WEEK, Calendar.MONDAY)
+        cal.set(Calendar.HOUR_OF_DAY, 0)
+        cal.set(Calendar.MINUTE, 0)
+        cal.set(Calendar.SECOND, 0)
+        val startOfWeekStr = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(cal.time)
+        
+        val gayatriWeekSum = allEntries.filter { it.date >= startOfWeekStr }.sumOf { it.dailyTotal }
+        val customWeekSum = allCustomEntries.filter { it.date >= startOfWeekStr }.sumOf { it.dailyTotal }
+        gayatriWeekSum + customWeekSum
+    }
 
     var showPunasModal by remember { mutableStateOf(false) }
 
@@ -427,6 +445,60 @@ fun TodayScreen(
                             contentDescription = "Save Manually to Cloud",
                             tint = activeMantraColor,
                             modifier = Modifier.size(16.dp)
+                        )
+                    }
+                }
+            }
+
+            if (weeklySankalpaTarget > 0) {
+                val progress = (weeklyCount.toFloat() / weeklySankalpaTarget.toFloat()).coerceIn(0f, 1f)
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 6.dp)
+                        .testTag("weekly_sankalpa_card"),
+                    colors = CardDefaults.cardColors(containerColor = activeMantraColor.copy(alpha = 0.08f)),
+                    border = BorderStroke(1.dp, activeMantraColor.copy(alpha = 0.2f)),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Column(modifier = Modifier.padding(12.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    imageVector = Icons.Default.Flag,
+                                    contentDescription = "Weekly Goal",
+                                    tint = activeMantraColor,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = "Weekly Sankalpa Goal",
+                                    style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                            }
+                            Text(
+                                text = String.format(Locale.US, "%,d / %,d", weeklyCount, weeklySankalpaTarget),
+                                style = MaterialTheme.typography.labelLarge.copy(
+                                    fontWeight = FontWeight.Bold,
+                                    fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
+                                ),
+                                color = activeMantraColor
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(6.dp))
+                        LinearProgressIndicator(
+                            progress = { progress },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(6.dp)
+                                .clip(CircleShape),
+                            color = activeMantraColor,
+                            trackColor = activeMantraColor.copy(alpha = 0.15f)
                         )
                     }
                 }

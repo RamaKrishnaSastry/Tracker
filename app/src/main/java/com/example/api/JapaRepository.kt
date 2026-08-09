@@ -45,6 +45,31 @@ class JapaRepository(
     val lastSyncError: StateFlow<String?> = _lastSyncError.asStateFlow()
 
     init {
+        val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+        val networkRequest = android.net.NetworkRequest.Builder()
+            .addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+            .build()
+        cm.registerNetworkCallback(networkRequest, object : ConnectivityManager.NetworkCallback() {
+            override fun onAvailable(network: android.net.Network) {
+                if (_syncState.value == SyncState.SYNC_PENDING) {
+                    syncWithCloud(isLocalUpdate = true)
+                } else if (_syncState.value == SyncState.OFFLINE) {
+                    scope.launch {
+                        if (authManager.userProfile.value != null) {
+                            _syncState.value = SyncState.SYNCED
+                        } else {
+                            _syncState.value = SyncState.DISCONNECTED
+                        }
+                    }
+                }
+            }
+            override fun onLost(network: android.net.Network) {
+                if (_syncState.value == SyncState.SYNCED) {
+                    _syncState.value = SyncState.OFFLINE
+                }
+            }
+        })
+
         scope.launch {
             authManager.userProfile.collect { profile ->
                 if (profile == null) {
@@ -125,6 +150,7 @@ class JapaRepository(
             if (cloudPayload != null) {
                 // If the file exists, we consider this user "already saved previously".
                 prefs.setInitialLifetimeCount(cloudPayload.initialLifetimeCount)
+                cloudPayload.settings.initialLifetimeCountUpdatedAt?.let { prefs.setInitialLifetimeCountUpdatedAt(it) }
                 prefs.setThemeMode(cloudPayload.settings.themeMode)
                 cloudPayload.settings.isPunascharanaEnabled?.let { prefs.setPunascharanaEnabled(it) }
                 cloudPayload.settings.universalColor?.let { prefs.setUniversalColor(it) }
@@ -369,35 +395,15 @@ class JapaRepository(
                             val localDate = parseTimestamp(localEntry.updatedAt)
                             val cloudDate = parseTimestamp(cloudEntry.updatedAt)
 
-                            // Conflict Resolution (CRDT max-merge hybrid):
-                            // 1. If local has 0 progress but cloud has >0 progress, cloud wins!
-                            // 2. If cloud has 0 progress but local has >0 progress, local wins!
-                            // 3. If both have progress, we merge the individual counts using maxOf() to prevent ANY possible dataloss
-                            //    due to timezone differences, offline usage, or clock skews across multiple devices.
-                            if (localDailyTotal == 0 && cloudDailyTotal > 0) {
+                            // Conflict Resolution (Timestamp-based):
+                            // To allow counts to be decreased or cleared (reset), we rely strictly on the updatedAt timestamp.
+                            if (cloudDate.after(localDate)) {
                                 mergedEntries[date] = newLocalFromCloud
                                 hasCloudNewerChanges = true
-                            } else if (cloudDailyTotal == 0 && localDailyTotal > 0) {
+                            } else if (localDate.after(cloudDate)) {
                                 hasLocalNewerChanges = true
                             } else {
-                                val mergedEntry = JapaEntry(
-                                    date = date,
-                                    pratahSandhyaCount = maxOf(localEntry.pratahSandhyaCount, cloudEntry.morning),
-                                    madhyahnikaSandhyaCount = maxOf(localEntry.madhyahnikaSandhyaCount, cloudEntry.afternoon),
-                                    sayamSandhyaCount = maxOf(localEntry.sayamSandhyaCount, cloudEntry.evening),
-                                    pratahPunascharanaCount = maxOf(localEntry.pratahPunascharanaCount, cloudEntry.pratahPunascharana ?: 0),
-                                    madhyahnikaPunascharanaCount = maxOf(localEntry.madhyahnikaPunascharanaCount, cloudEntry.madhyahnikaPunascharana ?: 0),
-                                    sayamPunascharanaCount = maxOf(localEntry.sayamPunascharanaCount, cloudEntry.sayamPunascharana ?: 0),
-                                    updatedAt = if (cloudDate.after(localDate)) cloudEntry.updatedAt else localEntry.updatedAt
-                                )
-                                mergedEntries[date] = mergedEntry
-
-                                if (mergedEntry != localEntry) {
-                                    hasCloudNewerChanges = true
-                                }
-                                if (mergedEntry != newLocalFromCloud) {
-                                    hasLocalNewerChanges = true
-                                }
+                                // Timestamps are equal; assume they are identical.
                             }
                         }
                     }
@@ -515,36 +521,15 @@ class JapaRepository(
                             val localDate = parseTimestamp(localCe.updatedAt)
                             val cloudDate = parseTimestamp(ce.updatedAt)
 
-                            // Conflict Resolution (CRDT max-merge hybrid):
-                            // 1. If local has 0 progress but cloud has >0 progress, cloud wins!
-                            // 2. If cloud has 0 progress but local has >0 progress, local wins!
-                            // 3. If both have progress, we merge individual fields using maxOf() to prevent multi-device/timezone dataloss.
-                            if (localDailyTotal == 0 && cloudDailyTotal > 0) {
+                            // Conflict Resolution (Timestamp-based):
+                            // To allow counts to be decreased or cleared (reset), we rely strictly on the updatedAt timestamp.
+                            if (cloudDate.after(localDate)) {
                                 mergedCustomEntries[key] = newLocalCeFromCloud
                                 hasCloudNewerChanges = true
-                            } else if (cloudDailyTotal == 0 && localDailyTotal > 0) {
+                            } else if (localDate.after(cloudDate)) {
                                 hasLocalNewerChanges = true
                             } else {
-                                val mergedCe = CustomPracticeEntry(
-                                    practiceId = ce.practiceId,
-                                    date = ce.date,
-                                    count = maxOf(localCe.count, ce.count),
-                                    morningCount = maxOf(localCe.morningCount, ce.morningCount),
-                                    afternoonCount = maxOf(localCe.afternoonCount, ce.afternoonCount),
-                                    eveningCount = maxOf(localCe.eveningCount, ce.eveningCount),
-                                    morningPunasCount = maxOf(localCe.morningPunasCount, ce.morningPunasCount),
-                                    afternoonPunasCount = maxOf(localCe.afternoonPunasCount, ce.afternoonPunasCount),
-                                    eveningPunasCount = maxOf(localCe.eveningPunasCount, ce.eveningPunasCount),
-                                    updatedAt = if (cloudDate.after(localDate)) ce.updatedAt else localCe.updatedAt
-                                )
-                                mergedCustomEntries[key] = mergedCe
-
-                                if (mergedCe != localCe) {
-                                    hasCloudNewerChanges = true
-                                }
-                                if (mergedCe != newLocalCeFromCloud) {
-                                    hasLocalNewerChanges = true
-                                }
+                                // Timestamps are equal; assume they are identical.
                             }
                         }
                     }
@@ -682,6 +667,22 @@ class JapaRepository(
             }
         } catch (e: Exception) {
             Date(0)
+        }
+    }
+
+    fun deleteCloudBackup(onComplete: (Boolean) -> Unit) {
+        scope.launch(Dispatchers.IO) {
+            val token = authManager.getAccessToken()
+            if (token == null) {
+                withContext(Dispatchers.Main) { onComplete(false) }
+                return@launch
+            }
+            val success = syncService.deleteCloudData(token)
+            if (success) {
+                prefs.setLastSync("Cloud backup deleted")
+                prefs.setLastSyncTimeMs(0L)
+            }
+            withContext(Dispatchers.Main) { onComplete(success) }
         }
     }
 }

@@ -37,6 +37,71 @@ import com.example.ui.JapaViewModel
 import com.example.ui.theme.getMantraColor
 import com.example.ui.theme.toHexString
 import com.example.ui.components.ColorPickerDialog
+import java.util.Locale
+
+fun exportJapaData(
+    context: android.content.Context,
+    entries: List<com.example.data.JapaEntry>,
+    customEntries: List<com.example.data.CustomPracticeEntry>,
+    practices: List<com.example.data.CustomPractice>,
+    format: String
+) {
+    val exportText = if (format == "CSV") {
+        buildString {
+            append("Date,Practice,Morning,Afternoon,Evening,Punascharana,DailyTotal\n")
+            entries.forEach { e ->
+                val punasTotal = e.pratahPunascharanaCount + e.madhyahnikaPunascharanaCount + e.sayamPunascharanaCount
+                append("${e.date},Gayatri Japa,${e.pratahSandhyaCount},${e.madhyahnikaSandhyaCount},${e.sayamSandhyaCount},$punasTotal,${e.dailyTotal}\n")
+            }
+            customEntries.forEach { ce ->
+                val practiceName = practices.find { p -> p.id == ce.practiceId }?.name ?: "Practice #${ce.practiceId}"
+                val punasTotal = ce.morningPunasCount + ce.afternoonPunasCount + ce.eveningPunasCount
+                append("${ce.date},\"$practiceName\",${ce.morningCount},${ce.afternoonCount},${ce.eveningCount},$punasTotal,${ce.dailyTotal}\n")
+            }
+        }
+    } else {
+        org.json.JSONArray().apply {
+            entries.forEach { e ->
+                put(org.json.JSONObject().apply {
+                    put("date", e.date)
+                    put("practice", "Gayatri Japa")
+                    put("morning", e.pratahSandhyaCount)
+                    put("afternoon", e.madhyahnikaSandhyaCount)
+                    put("evening", e.sayamSandhyaCount)
+                    put("pratahPunascharana", e.pratahPunascharanaCount)
+                    put("madhyahnikaPunascharana", e.madhyahnikaPunascharanaCount)
+                    put("sayamPunascharana", e.sayamPunascharanaCount)
+                    put("dailyTotal", e.dailyTotal)
+                    put("updatedAt", e.updatedAt)
+                })
+            }
+            customEntries.forEach { ce ->
+                val practiceName = practices.find { p -> p.id == ce.practiceId }?.name ?: "Practice #${ce.practiceId}"
+                put(org.json.JSONObject().apply {
+                    put("date", ce.date)
+                    put("practiceId", ce.practiceId)
+                    put("practiceName", practiceName)
+                    put("count", ce.count)
+                    put("morning", ce.morningCount)
+                    put("afternoon", ce.afternoonCount)
+                    put("evening", ce.eveningCount)
+                    put("morningPunas", ce.morningPunasCount)
+                    put("afternoonPunas", ce.afternoonPunasCount)
+                    put("eveningPunas", ce.eveningPunasCount)
+                    put("dailyTotal", ce.dailyTotal)
+                    put("updatedAt", ce.updatedAt)
+                })
+            }
+        }.toString(2)
+    }
+
+    val intent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+        type = if (format == "CSV") "text/csv" else "text/plain"
+        putExtra(android.content.Intent.EXTRA_SUBJECT, "Mantra Japa Data Export ($format)")
+        putExtra(android.content.Intent.EXTRA_TEXT, exportText)
+    }
+    context.startActivity(android.content.Intent.createChooser(intent, "Share Exported Japa Data"))
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -53,6 +118,12 @@ fun SettingsScreen(
     val syncMessage by viewModel.syncMessage.collectAsState()
     val authError by viewModel.authError.collectAsState()
     val universalColor by viewModel.universalColor.collectAsState()
+    val weeklySankalpaTarget by viewModel.weeklySankalpaTarget.collectAsState()
+    val allEntries by viewModel.allEntries.collectAsState()
+    val allCustomEntries by viewModel.allCustomPracticeEntries.collectAsState()
+    val allPractices by viewModel.allCustomPractices.collectAsState()
+
+    var showDeleteBackupDialog by remember { mutableStateOf(false) }
 
     val context = LocalContext.current
     val googleSignInLauncher = rememberLauncherForActivityResult(
@@ -251,6 +322,16 @@ fun SettingsScreen(
                             )
                         }
                     }
+
+                    Spacer(modifier = Modifier.height(12.dp))
+                    TextButton(
+                        onClick = { showDeleteBackupDialog = true },
+                        modifier = Modifier.align(Alignment.End).testTag("delete_cloud_backup_button")
+                    ) {
+                        Icon(Icons.Default.DeleteForever, contentDescription = null, tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("Delete Cloud Backup File", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                    }
                 } else {
                     Text(
                         text = "Cloud Sync is Disconnected",
@@ -284,6 +365,141 @@ fun SettingsScreen(
                         shape = RoundedCornerShape(12.dp)
                     ) {
                         Text("Connect Google Drive Backup")
+                    }
+                }
+            }
+        }
+
+        if (showDeleteBackupDialog) {
+            AlertDialog(
+                onDismissRequest = { showDeleteBackupDialog = false },
+                title = { Text("Delete Cloud Backup?") },
+                text = { Text("This will permanently delete the backup JSON file from your private Google Drive appDataFolder. Your local database entries will remain intact.") },
+                confirmButton = {
+                    TextButton(
+                        onClick = {
+                            viewModel.deleteCloudBackup { success ->
+                                showDeleteBackupDialog = false
+                                val msg = if (success) "Cloud backup file deleted successfully" else "Failed to delete cloud backup file"
+                                android.widget.Toast.makeText(context, msg, android.widget.Toast.LENGTH_SHORT).show()
+                            }
+                        }
+                    ) {
+                        Text("Delete Backup", color = MaterialTheme.colorScheme.error)
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showDeleteBackupDialog = false }) {
+                        Text("Cancel")
+                    }
+                }
+            )
+        }
+
+        // 1a. Weekly Sankalpa Goal Target
+        SettingsGroupHeader(title = "Weekly Sankalpa Target", icon = Icons.Outlined.Flag)
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = 16.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+            shape = RoundedCornerShape(16.dp),
+            elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Text(
+                    text = "Configure your weekly target (Sankalpa). Progress is shown on the Today tab.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                )
+                Spacer(modifier = Modifier.height(12.dp))
+
+                var editingTarget by remember { mutableStateOf(false) }
+                var targetInput by remember(weeklySankalpaTarget) { mutableStateOf(weeklySankalpaTarget.toString()) }
+
+                if (editingTarget) {
+                    OutlinedTextField(
+                        value = targetInput,
+                        onValueChange = { if (it.all { char -> char.isDigit() }) targetInput = it },
+                        label = { Text("Weekly Goal Target (e.g. 1008)") },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth().testTag("weekly_sankalpa_input")
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                        TextButton(onClick = { editingTarget = false }) { Text("Cancel") }
+                        Button(
+                            onClick = {
+                                val parsed = targetInput.toIntOrNull() ?: 1008
+                                viewModel.setWeeklySankalpaTarget(parsed)
+                                editingTarget = false
+                            },
+                            modifier = Modifier.testTag("save_weekly_sankalpa_button")
+                        ) { Text("Save Target") }
+                    }
+                } else {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column {
+                            Text("Current Target", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f))
+                            Text(
+                                text = String.format(Locale.US, "%,d", weeklySankalpaTarget),
+                                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold, fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace),
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                        IconButton(onClick = { editingTarget = true }) {
+                            Icon(Icons.Default.Edit, contentDescription = "Edit Target")
+                        }
+                    }
+                }
+            }
+        }
+
+        // Data Export & Ownership Section
+        SettingsGroupHeader(title = "Data Ownership & Export", icon = Icons.Outlined.FileDownload)
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = 16.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+            shape = RoundedCornerShape(16.dp),
+            elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Text(
+                    text = "Your practice data belongs strictly to you. Export complete Japa history as CSV or JSON files for local backup or personal analysis.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                )
+                Spacer(modifier = Modifier.height(14.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    OutlinedButton(
+                        onClick = { exportJapaData(context, allEntries, allCustomEntries, allPractices, "CSV") },
+                        modifier = Modifier.weight(1f).testTag("export_csv_button"),
+                        shape = RoundedCornerShape(10.dp)
+                    ) {
+                        Icon(Icons.Default.TableChart, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Export CSV")
+                    }
+
+                    OutlinedButton(
+                        onClick = { exportJapaData(context, allEntries, allCustomEntries, allPractices, "JSON") },
+                        modifier = Modifier.weight(1f).testTag("export_json_button"),
+                        shape = RoundedCornerShape(10.dp)
+                    ) {
+                        Icon(Icons.Default.Code, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Export JSON")
                     }
                 }
             }

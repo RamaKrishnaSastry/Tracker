@@ -182,4 +182,31 @@ class GoogleDriveSyncService {
         }
         return false
     }
+
+    /**
+     * Deletes the user backup file from Google Drive appDataFolder.
+     */
+    fun deleteCloudData(accessToken: String): Boolean {
+        val fileId = findBackupFileId(accessToken) ?: return true
+        val url = "https://www.googleapis.com/drive/v3/files/$fileId"
+        val request = Request.Builder()
+            .url(url)
+            .addHeader("Authorization", "Bearer $accessToken")
+            .delete()
+            .build()
+
+        try {
+            client.newCall(request).execute().use { response ->
+                if (response.isSuccessful || response.code == 404) {
+                    Log.d(TAG, "Deleted japa cloud backup successfully.")
+                    return true
+                } else {
+                    Log.e(TAG, "Delete failure: code ${response.code}")
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Exception during backup deletion: ${e.message}", e)
+        }
+        return false
+    }
 }

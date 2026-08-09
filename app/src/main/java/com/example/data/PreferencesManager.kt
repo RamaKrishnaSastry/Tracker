@@ -164,6 +164,15 @@ class PreferencesManager(context: Context) {
 
     fun getSettingsUpdatedAt(): String = prefs.getString("settings_updated_at", "2020-01-01T00:00:00Z") ?: "2020-01-01T00:00:00Z"
     
+    private val _weeklySankalpaTarget = MutableStateFlow(getWeeklySankalpaTarget())
+    val weeklySankalpaTarget: StateFlow<Int> = _weeklySankalpaTarget.asStateFlow()
+
+    fun getWeeklySankalpaTarget(): Int = prefs.getInt("weekly_sankalpa_target", 1008)
+    fun setWeeklySankalpaTarget(target: Int) {
+        prefs.edit().putInt("weekly_sankalpa_target", target).apply()
+        _weeklySankalpaTarget.value = target
+    }
+
     fun updateSettingsTimestamp() {
         val now = java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", java.util.Locale.US).apply {
             timeZone = java.util.TimeZone.getTimeZone("UTC")

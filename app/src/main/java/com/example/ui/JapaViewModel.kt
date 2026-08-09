@@ -709,6 +709,16 @@ class JapaViewModel(application: Application) : AndroidViewModel(application) {
         _searchQuery.value = query
     }
 
+    val weeklySankalpaTarget: StateFlow<Int> = prefs.weeklySankalpaTarget
+
+    fun setWeeklySankalpaTarget(target: Int) {
+        prefs.setWeeklySankalpaTarget(target)
+    }
+
+    fun deleteCloudBackup(onComplete: (Boolean) -> Unit) {
+        repository.deleteCloudBackup(onComplete)
+    }
+
     fun triggerManualSync() {
         viewModelScope.launch {
             repository.syncWithCloud()
