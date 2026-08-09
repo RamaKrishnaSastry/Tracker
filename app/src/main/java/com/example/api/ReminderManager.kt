@@ -6,6 +6,9 @@ import android.content.Context
 import android.content.Intent
 import android.util.Log
 import com.example.data.PreferencesManager
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import java.util.*
 
 class ReminderManager(private val context: Context) {
@@ -30,6 +33,24 @@ class ReminderManager(private val context: Context) {
             scheduleAlarm("evening", prefs.getEveningReminderTime(), 1003)
         } else {
             cancelAlarm(1003)
+        }
+
+        // Schedule Custom Practice Alarms
+        kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
+            try {
+                val db = com.example.data.AppDatabase.getDatabase(context)
+                val practices = db.customPracticeDao().getAllPractices()
+                for (practice in practices) {
+                    val requestCode = (2000 + practice.id).toInt()
+                    if (practice.isReminderEnabled && practice.reminderTime.isNotEmpty() && !practice.isArchived) {
+                        scheduleAlarm("custom_${practice.id}", practice.reminderTime, requestCode)
+                    } else {
+                        cancelAlarm(requestCode)
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Error scheduling custom practice alarms: ${e.message}")
+            }
         }
     }
 

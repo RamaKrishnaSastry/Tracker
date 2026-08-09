@@ -312,6 +312,7 @@ class JapaViewModel(application: Application) : AndroidViewModel(application) {
     fun addNewPractice(name: String, defaultTarget: Int = 108) {
         viewModelScope.launch {
             customPracticeDao.insertPractice(CustomPractice(name = name, defaultTarget = defaultTarget))
+            reminderManager.scheduleAlarms()
             repository.syncWithCloud(isLocalUpdate = true)
         }
     }
@@ -320,6 +321,7 @@ class JapaViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             val newId = customPracticeDao.insertPractice(practice)
             prefs.updateSettingsTimestamp()
+            reminderManager.scheduleAlarms()
             repository.syncWithCloud(isLocalUpdate = true)
             onCreated(newId)
         }
@@ -330,6 +332,7 @@ class JapaViewModel(application: Application) : AndroidViewModel(application) {
             customPracticeDao.updatePractice(practice)
             prefs.updateSettingsTimestamp()
             GayatriWidgetHelper.triggerAllWidgetsUpdate(getApplication())
+            reminderManager.scheduleAlarms()
             repository.syncWithCloud(isLocalUpdate = true)
         }
     }
@@ -338,6 +341,7 @@ class JapaViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             val newId = customPracticeDao.insertPractice(practice)
             prefs.updateSettingsTimestamp()
+            reminderManager.scheduleAlarms()
             repository.syncWithCloud(isLocalUpdate = true)
         }
     }
@@ -415,6 +419,7 @@ class JapaViewModel(application: Application) : AndroidViewModel(application) {
             }
             customPracticeDao.insertOrUpdateEntry(existing)
             repository.syncWithCloud(isLocalUpdate = true)
+            GayatriWidgetHelper.triggerAllWidgetsUpdate(getApplication())
         }
     }
 
@@ -456,6 +461,7 @@ class JapaViewModel(application: Application) : AndroidViewModel(application) {
             }
             customPracticeDao.insertOrUpdateEntry(existing)
             repository.syncWithCloud(isLocalUpdate = true)
+            GayatriWidgetHelper.triggerAllWidgetsUpdate(getApplication())
         }
     }
 
@@ -494,6 +500,7 @@ class JapaViewModel(application: Application) : AndroidViewModel(application) {
             }
             database.japaDao().insertOrUpdate(existing)
             repository.syncWithCloud(isLocalUpdate = true)
+            GayatriWidgetHelper.triggerAllWidgetsUpdate(getApplication())
         }
     }
 

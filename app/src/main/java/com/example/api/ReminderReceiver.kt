@@ -24,11 +24,18 @@ class ReminderReceiver : BroadcastReceiver() {
         val prefs = PreferencesManager(context)
 
         // Triple-check if the reminder is still enabled before notifying
-        val isEnabled = when (type) {
-            "morning" -> prefs.getMorningReminderEnabled()
-            "afternoon" -> prefs.getAfternoonReminderEnabled()
-            "evening" -> prefs.getEveningReminderEnabled()
-            else -> false
+        val isEnabled = if (type.startsWith("custom_")) {
+            val practiceId = type.removePrefix("custom_").toLongOrNull() ?: return
+            val dao = AppDatabase.getDatabase(context).customPracticeDao()
+            val practice = runBlocking { dao.getPracticeById(practiceId) }
+            practice?.isReminderEnabled == true && !practice.isArchived
+        } else {
+            when (type) {
+                "morning" -> prefs.getMorningReminderEnabled()
+                "afternoon" -> prefs.getAfternoonReminderEnabled()
+                "evening" -> prefs.getEveningReminderEnabled()
+                else -> false
+            }
         }
 
         if (!isEnabled) return
@@ -43,20 +50,27 @@ class ReminderReceiver : BroadcastReceiver() {
         // 2. Enforce: Maximum one reminder per Sandhya period per day
         val todayStr = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date())
         if (prefs.getLastRemindedDate(type) == todayStr) {
-            Log.d(TAG, "Reminders skipped: Already notified for $type sandhya today ($todayStr).")
+            Log.d(TAG, "Reminders skipped: Already notified for $type today ($todayStr).")
             return
         }
 
-        // 3. Enforce context-awareness: Notify only when a Sandhya count has not been recorded.
+        // 3. Enforce context-awareness: Notify only when a count has not been recorded.
         // Stop reminders immediately after completion.
         val isCompleted = try {
-            val dao = AppDatabase.getDatabase(context).japaDao()
-            val entry = runBlocking { dao.getEntryByDate(todayStr) }
-            when (type) {
-                "morning" -> (entry?.pratahSandhyaCount ?: 0) > 0
-                "afternoon" -> (entry?.madhyahnikaSandhyaCount ?: 0) > 0
-                "evening" -> (entry?.sayamSandhyaCount ?: 0) > 0
-                else -> false
+            val db = AppDatabase.getDatabase(context)
+            if (type.startsWith("custom_")) {
+                val practiceId = type.removePrefix("custom_").toLongOrNull() ?: return
+                val entry = runBlocking { db.customPracticeDao().getEntryByDate(practiceId, todayStr) }
+                (entry?.count ?: 0) > 0 || (entry?.morningCount ?: 0) > 0 || (entry?.afternoonCount ?: 0) > 0 || (entry?.eveningCount ?: 0) > 0
+            } else {
+                val dao = db.japaDao()
+                val entry = runBlocking { dao.getEntryByDate(todayStr) }
+                when (type) {
+                    "morning" -> (entry?.pratahSandhyaCount ?: 0) > 0
+                    "afternoon" -> (entry?.madhyahnikaSandhyaCount ?: 0) > 0
+                    "evening" -> (entry?.sayamSandhyaCount ?: 0) > 0
+                    else -> false
+                }
             }
         } catch (e: Exception) {
             Log.e(TAG, "Error checking database inside receiver: ${e.message}")
@@ -64,7 +78,7 @@ class ReminderReceiver : BroadcastReceiver() {
         }
 
         if (isCompleted) {
-            Log.d(TAG, "Reminders skipped: $type sandhya is already completed (count > 0).")
+            Log.d(TAG, "Reminders skipped: $type is already completed (count > 0).")
             return
         }
 
@@ -79,29 +93,40 @@ class ReminderReceiver : BroadcastReceiver() {
         }
 
         // 5. Structure messaging based on intensity settings (Minimal, Standard)
-        val title = when (type) {
-            "morning" -> "Pratah Sandhyavandanam"
-            "afternoon" -> "Madhyahnika Sandhya"
-            "evening" -> "Sayam Sandhyavandanam"
-            else -> "Sandhyavandanam Time"
+        val practiceName = if (type.startsWith("custom_")) {
+            val practiceId = type.removePrefix("custom_").toLongOrNull() ?: return
+            val dao = AppDatabase.getDatabase(context).customPracticeDao()
+            val practice = runBlocking { dao.getPracticeById(practiceId) }
+            practice?.name ?: "Custom Practice"
+        } else {
+            when (type) {
+                "morning" -> "Pratah Sandhya"
+                "afternoon" -> "Madhyahnika Sandhya"
+                else -> "Sayam Sandhya"
+            }
+        }
+
+        val title = if (type.startsWith("custom_")) {
+            practiceName
+        } else {
+            when (type) {
+                "morning" -> "Pratah Sandhyavandanam"
+                "afternoon" -> "Madhyahnika Sandhya"
+                "evening" -> "Sayam Sandhyavandanam"
+                else -> "Sandhyavandanam Time"
+            }
         }
 
         val message = if (intensity == "minimal") {
             // E.g. "Pratah Sandhya count has not been recorded today."
-            val localizedName = when (type) {
-                "morning" -> "Pratah Sandhya"
-                "afternoon" -> "Madhyahnika Sandhya"
-                else -> "Sayam Sandhya"
-            }
-            "$localizedName count has not been recorded today."
+            "$practiceName count has not been recorded today."
         } else {
             // Standard respectful reminder message
-            val localizedName = when (type) {
-                "morning" -> "Pratah Sandhya"
-                "afternoon" -> "Madhyahnika Sandhya"
-                else -> "Sayam Sandhya"
+            if (type.startsWith("custom_")) {
+                "$practiceName count has not been recorded today. Spend a few minutes for your practice."
+            } else {
+                "$practiceName count has not been recorded today. Spend a few minutes for your sacred Gayatri Japa repetition."
             }
-            "$localizedName count has not been recorded today. Spend a few minutes for your sacred Gayatri Japa repetition."
         }
 
         showNotification(context, title, message, type.hashCode())
