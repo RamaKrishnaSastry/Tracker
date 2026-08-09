@@ -147,6 +147,7 @@ class JapaRepository(
                 cloudPayload.settings.isPunascharanaEnabled?.let { prefs.setPunascharanaEnabled(it) }
                 cloudPayload.settings.universalColor?.let { prefs.setUniversalColor(it) }
                 cloudPayload.settings.gayatriColor?.let { prefs.setGayatriColor(it) }
+                cloudPayload.settings.weeklySankalpaTarget?.let { prefs.setWeeklySankalpaTarget(it) }
 
                 if (cloudPayload.entries.isNotEmpty()) {
                     val cloudEntries = cloudPayload.entries.map { (date, cloudEntry) ->
@@ -353,6 +354,11 @@ class JapaRepository(
                         if (cloudUniversalColor != prefs.getUniversalColor()) {
                             syncedUniversalColor = cloudUniversalColor
                             prefs.setUniversalColor(syncedUniversalColor)
+                            hasCloudNewerChanges = true
+                        }
+                        val cloudWeeklyTarget = cloudPayload.settings.weeklySankalpaTarget ?: 1008
+                        if (cloudWeeklyTarget != prefs.getWeeklySankalpaTarget()) {
+                            prefs.setWeeklySankalpaTarget(cloudWeeklyTarget)
                             hasCloudNewerChanges = true
                         }
                     } else if (localSettingsDate.after(cloudSettingsDate)) {
@@ -615,7 +621,8 @@ class JapaRepository(
                             gayatriColor = syncedGayatriColor,
                             universalColor = syncedUniversalColor,
                             updatedAt = prefs.getSettingsUpdatedAt(),
-                            initialLifetimeCountUpdatedAt = prefs.getInitialLifetimeCountUpdatedAt()
+                            initialLifetimeCountUpdatedAt = prefs.getInitialLifetimeCountUpdatedAt(),
+                            weeklySankalpaTarget = prefs.getWeeklySankalpaTarget()
                         ),
                         entries = entriesMap,
                         customPractices = syncCustomPractices,

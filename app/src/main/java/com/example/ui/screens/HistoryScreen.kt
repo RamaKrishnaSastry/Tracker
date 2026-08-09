@@ -246,11 +246,19 @@ fun HistoryScreen(
                 else -> item is UnifiedHistoryItem.CustomItem && item.entry.practiceId == selectedMantraId
             }
 
-            // Match search query (date)
+            // Match search query (date or practice name)
             val matchesQuery = if (searchQuery.trim().isEmpty()) {
                 true
             } else {
-                item.dateString.contains(searchQuery, ignoreCase = true)
+                val query = searchQuery.trim()
+                item.dateString.contains(query, ignoreCase = true) ||
+                when (item) {
+                    is UnifiedHistoryItem.GayatriItem -> gayatriName.contains(query, ignoreCase = true) || "Gayatri".contains(query, ignoreCase = true)
+                    is UnifiedHistoryItem.CustomItem -> {
+                        val practiceName = allPractices.find { it.id == item.entry.practiceId }?.name ?: ""
+                        practiceName.contains(query, ignoreCase = true)
+                    }
+                }
             }
 
             matchesFilter && matchesQuery

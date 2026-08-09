@@ -44,55 +44,71 @@ object GayatriWidgetHelper {
         val dao = db.japaDao()
         val prefs = PreferencesManager(context)
 
-        val entry = runBlocking { dao.getEntryByDate(todayStr) }
-        val allEntries = runBlocking { dao.getAllEntries() }
-        val lifetimeSum = allEntries.sumOf { it.dailyTotal.toLong() }
-        val finalLifetimeCount = prefs.getInitialLifetimeCount() + lifetimeSum
-        
-        // Universal color
-        val universalColorName = prefs.getUniversalColor()
-        val accentColor = getMantraColor(universalColorName).toArgb()
+        val pinnedPractice = runBlocking {
+            db.customPracticeDao().getAllPractices().find { it.isWidgetPinned && !it.isArchived }
+        }
 
-        // 2. Identify priority incomplete Sandhya based on TIME
-        val hour = Calendar.getInstance().get(Calendar.HOUR_OF_DAY)
         var targetLabel = ""
         var targetType = ""
         var currentCount = 0
+        var targetGoal = 108
         var allComplete = false
+        var accentColor = getMantraColor(prefs.getUniversalColor()).toArgb()
+        var finalLifetimeCount = 0L
 
-        if (entry == null) {
-             when {
-                hour < 10 -> { targetLabel = "Morning"; targetType = "morning" }
-                hour < 15 -> { targetLabel = "Noon"; targetType = "afternoon" }
-                else -> { targetLabel = "Evening"; targetType = "evening" }
-            }
-        } else {
-            if (hour < 10 && entry.pratahSandhyaCount == 0) {
-                targetLabel = "Morning"; targetType = "morning"
-            } else if (hour in 10..15 && entry.madhyahnikaSandhyaCount == 0) {
-                targetLabel = "Noon"; targetType = "afternoon"
-            } else if (hour > 15 && entry.sayamSandhyaCount == 0) {
-                targetLabel = "Evening"; targetType = "evening"
-            } 
-            else if (entry.pratahSandhyaCount == 0) {
-                 targetLabel = "Catch-up: Morning"; targetType = "morning"
-            } else if (entry.madhyahnikaSandhyaCount == 0) {
-                 targetLabel = "Catch-up: Noon"; targetType = "afternoon"
-            } else if (entry.sayamSandhyaCount == 0) {
-                 targetLabel = "Catch-up: Evening"; targetType = "evening"
-            } else {
-                allComplete = true
-                targetLabel = "Done for Day!"
-                targetType = "punas_evening"
-                currentCount = entry.dailyTotal
-            }
+        if (pinnedPractice != null) {
+            targetLabel = pinnedPractice.name
+            targetType = "custom_${pinnedPractice.id}"
+            targetGoal = if (pinnedPractice.defaultTarget > 0) pinnedPractice.defaultTarget else 108
             
-            if (!allComplete) {
-                currentCount = when(targetType) {
-                    "morning" -> entry.pratahSandhyaCount
-                    "afternoon" -> entry.madhyahnikaSandhyaCount
-                    "evening" -> entry.sayamSandhyaCount
-                    else -> 0
+            val customEntry = runBlocking { db.customPracticeDao().getEntryByDate(pinnedPractice.id, todayStr) }
+            val allCustomEntries = runBlocking { db.customPracticeDao().getAllCustomPracticeEntries().filter { it.practiceId == pinnedPractice.id } }
+            currentCount = customEntry?.dailyTotal ?: 0
+            finalLifetimeCount = pinnedPractice.initialLifetimeCount + allCustomEntries.sumOf { it.dailyTotal.toLong() }
+            allComplete = currentCount >= targetGoal
+            accentColor = getMantraColor(pinnedPractice.themeColor).toArgb()
+        } else {
+            val entry = runBlocking { dao.getEntryByDate(todayStr) }
+            val allEntries = runBlocking { dao.getAllEntries() }
+            val lifetimeSum = allEntries.sumOf { it.dailyTotal.toLong() }
+            finalLifetimeCount = prefs.getInitialLifetimeCount() + lifetimeSum
+
+            val hour = Calendar.getInstance().get(Calendar.HOUR_OF_DAY)
+
+            if (entry == null) {
+                 when {
+                    hour < 10 -> { targetLabel = "Morning"; targetType = "morning" }
+                    hour < 15 -> { targetLabel = "Noon"; targetType = "afternoon" }
+                    else -> { targetLabel = "Evening"; targetType = "evening" }
+                }
+            } else {
+                if (hour < 10 && entry.pratahSandhyaCount == 0) {
+                    targetLabel = "Morning"; targetType = "morning"
+                } else if (hour in 10..15 && entry.madhyahnikaSandhyaCount == 0) {
+                    targetLabel = "Noon"; targetType = "afternoon"
+                } else if (hour > 15 && entry.sayamSandhyaCount == 0) {
+                    targetLabel = "Evening"; targetType = "evening"
+                } 
+                else if (entry.pratahSandhyaCount == 0) {
+                     targetLabel = "Catch-up: Morning"; targetType = "morning"
+                } else if (entry.madhyahnikaSandhyaCount == 0) {
+                     targetLabel = "Catch-up: Noon"; targetType = "afternoon"
+                } else if (entry.sayamSandhyaCount == 0) {
+                     targetLabel = "Catch-up: Evening"; targetType = "evening"
+                } else {
+                    allComplete = true
+                    targetLabel = "Done for Day!"
+                    targetType = "punas_evening"
+                    currentCount = entry.dailyTotal
+                }
+                
+                if (!allComplete) {
+                    currentCount = when(targetType) {
+                        "morning" -> entry.pratahSandhyaCount
+                        "afternoon" -> entry.madhyahnikaSandhyaCount
+                        "evening" -> entry.sayamSandhyaCount
+                        else -> 0
+                    }
                 }
             }
         }
@@ -106,14 +122,14 @@ object GayatriWidgetHelper {
         views.setTextColor(com.example.R.id.widget_label, accentColor)
         
         // Progress bar
-        val progress = ((currentCount.toFloat() / 108f) * 100).toInt().coerceIn(0, 100)
+        val progress = ((currentCount.toFloat() / targetGoal.toFloat()) * 100).toInt().coerceIn(0, 100)
         views.setProgressBar(com.example.R.id.widget_progress, 100, progress, false)
 
         if (allComplete) {
             views.setTextViewText(com.example.R.id.widget_sub_label, "Goal Reached 🙏")
         } else {
-            val remaining = if (currentCount < 108) 108 - currentCount else 0
-            views.setTextViewText(com.example.R.id.widget_sub_label, "$remaining to 108")
+            val remaining = if (currentCount < targetGoal) targetGoal - currentCount else 0
+            views.setTextViewText(com.example.R.id.widget_sub_label, "$remaining to $targetGoal")
         }
 
         // 4. Configure Action Buttons
@@ -351,6 +367,27 @@ object GayatriWidgetHelper {
         }
         val timestamp = sdf.format(Date())
 
+        val pinnedPractice = runBlocking {
+            db.customPracticeDao().getAllPractices().find { it.isWidgetPinned && !it.isArchived }
+        }
+        if (pinnedPractice != null) {
+            runBlocking {
+                var cEntry = db.customPracticeDao().getEntryByDate(pinnedPractice.id, todayStr)
+                if (cEntry == null) {
+                    cEntry = com.example.data.CustomPracticeEntry(
+                        practiceId = pinnedPractice.id,
+                        date = todayStr,
+                        count = value,
+                        updatedAt = timestamp
+                    )
+                } else {
+                    cEntry = cEntry.copy(count = value, updatedAt = timestamp)
+                }
+                db.customPracticeDao().insertOrUpdateEntry(cEntry)
+            }
+            return
+        }
+
         runBlocking {
             var entry = dao.getEntryByDate(todayStr)
             if (entry == null) {
@@ -384,6 +421,28 @@ object GayatriWidgetHelper {
             timeZone = TimeZone.getTimeZone("UTC")
         }
         val timestamp = sdf.format(Date())
+
+        val pinnedPractice = runBlocking {
+            db.customPracticeDao().getAllPractices().find { it.isWidgetPinned && !it.isArchived }
+        }
+        if (pinnedPractice != null) {
+            runBlocking {
+                var cEntry = db.customPracticeDao().getEntryByDate(pinnedPractice.id, todayStr)
+                if (cEntry == null) {
+                    cEntry = com.example.data.CustomPracticeEntry(
+                        practiceId = pinnedPractice.id,
+                        date = todayStr,
+                        count = amount,
+                        updatedAt = timestamp
+                    )
+                } else {
+                    val currentVal = if (cEntry.count < 0) 0 else cEntry.count
+                    cEntry = cEntry.copy(count = currentVal + amount, updatedAt = timestamp)
+                }
+                db.customPracticeDao().insertOrUpdateEntry(cEntry)
+            }
+            return
+        }
 
         runBlocking {
             var entry = dao.getEntryByDate(todayStr)

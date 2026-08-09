@@ -10,6 +10,8 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -41,6 +43,8 @@ import androidx.core.content.ContextCompat
 import android.content.pm.PackageManager
 import android.os.Build
 import android.Manifest
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import com.example.data.JapaEntry
 import com.example.ui.JapaViewModel
 import com.example.api.SyncState
@@ -89,12 +93,12 @@ fun TodayScreen(
     var showPunasModal by remember { mutableStateOf(false) }
 
     // Current Date Formatting (e.g. Friday, Jun 19, 2026)
-    val todayLongStr = remember {
+    val todayLongStr = remember(todayDate) {
         SimpleDateFormat("EEEE, MMM d, yyyy", Locale.getDefault()).format(Date())
     }
 
     // Dynamic greeting based on local time
-    val timeGreeting = remember {
+    val timeGreeting = remember(todayDate) {
         val hour = Calendar.getInstance().get(Calendar.HOUR_OF_DAY)
         when (hour) {
             in 5..11 -> "Good Morning"
@@ -348,7 +352,58 @@ fun TodayScreen(
                 }
             }
 
-            // Title, Greeting and Date
+            // Practice Chips Quick-Switch Row
+            var showAddPracticeDialogFromChip by remember { mutableStateOf(false) }
+            LazyRow(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 12.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                item {
+                    val isSelected = activePracticeId == com.example.ui.GAYATRI_PRACTICE_ID
+                    FilterChip(
+                        selected = isSelected,
+                        onClick = { viewModel.setActivePractice(com.example.ui.GAYATRI_PRACTICE_ID) },
+                        label = { Text(gayatriName, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal) },
+                        leadingIcon = if (isSelected) {
+                            { Icon(Icons.Default.Check, null, modifier = Modifier.size(16.dp)) }
+                        } else null
+                    )
+                }
+
+                items(allPractices.filter { it.id != com.example.ui.GAYATRI_PRACTICE_ID }) { practice ->
+                    val isSelected = activePracticeId == practice.id
+                    FilterChip(
+                        selected = isSelected,
+                        onClick = { viewModel.setActivePractice(practice.id) },
+                        label = { Text(practice.name, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal) },
+                        leadingIcon = if (isSelected) {
+                            { Icon(Icons.Default.Check, null, modifier = Modifier.size(16.dp)) }
+                        } else null
+                    )
+                }
+
+                item {
+                    AssistChip(
+                        onClick = { showAddPracticeDialogFromChip = true },
+                        label = { Text("Add Practice", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.SemiBold) },
+                        leadingIcon = { Icon(Icons.Default.Add, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(16.dp)) }
+                    )
+                }
+            }
+
+            if (showAddPracticeDialogFromChip) {
+                AddMantraTemplateDialog(
+                    viewModel = viewModel,
+                    onDismiss = { showAddPracticeDialogFromChip = false },
+                    onCreated = { newId ->
+                        viewModel.setActivePractice(newId)
+                        showAddPracticeDialogFromChip = false
+                    }
+                )
+            }
             Text(
                 text = "Namaskaram, $userName",
                 style = MaterialTheme.typography.titleLarge.copy(
@@ -458,13 +513,19 @@ fun TodayScreen(
 
             if (weeklySankalpaTarget > 0) {
                 val progress = (weeklyCount.toFloat() / weeklySankalpaTarget.toFloat()).coerceIn(0f, 1f)
+                val isGoalReached = weeklyCount >= weeklySankalpaTarget
                 Card(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(vertical = 6.dp)
                         .testTag("weekly_sankalpa_card"),
-                    colors = CardDefaults.cardColors(containerColor = activeMantraColor.copy(alpha = 0.08f)),
-                    border = BorderStroke(1.dp, activeMantraColor.copy(alpha = 0.2f)),
+                    colors = CardDefaults.cardColors(
+                        containerColor = if (isGoalReached) Color(0xFF4CAF50).copy(alpha = 0.12f) else activeMantraColor.copy(alpha = 0.08f)
+                    ),
+                    border = BorderStroke(
+                        1.dp,
+                        if (isGoalReached) Color(0xFF4CAF50).copy(alpha = 0.4f) else activeMantraColor.copy(alpha = 0.2f)
+                    ),
                     shape = RoundedCornerShape(12.dp)
                 ) {
                     Column(modifier = Modifier.padding(12.dp)) {
@@ -475,14 +536,14 @@ fun TodayScreen(
                         ) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Icon(
-                                    imageVector = Icons.Default.Flag,
+                                    imageVector = if (isGoalReached) Icons.Default.CheckCircle else Icons.Default.Flag,
                                     contentDescription = "Weekly Goal",
-                                    tint = activeMantraColor,
+                                    tint = if (isGoalReached) Color(0xFF4CAF50) else activeMantraColor,
                                     modifier = Modifier.size(16.dp)
                                 )
                                 Spacer(modifier = Modifier.width(6.dp))
                                 Text(
-                                    text = "Weekly Sankalpa Goal",
+                                    text = if (isGoalReached) "Weekly Sankalpa Accomplished! 🙏" else "Weekly Sankalpa Goal",
                                     style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
                                     color = MaterialTheme.colorScheme.onSurface
                                 )
@@ -493,7 +554,7 @@ fun TodayScreen(
                                     fontWeight = FontWeight.Bold,
                                     fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
                                 ),
-                                color = activeMantraColor
+                                color = if (isGoalReached) Color(0xFF4CAF50) else activeMantraColor
                             )
                         }
                         Spacer(modifier = Modifier.height(6.dp))
@@ -503,8 +564,8 @@ fun TodayScreen(
                                 .fillMaxWidth()
                                 .height(6.dp)
                                 .clip(CircleShape),
-                            color = activeMantraColor,
-                            trackColor = activeMantraColor.copy(alpha = 0.15f)
+                            color = if (isGoalReached) Color(0xFF4CAF50) else activeMantraColor,
+                            trackColor = (if (isGoalReached) Color(0xFF4CAF50) else activeMantraColor).copy(alpha = 0.15f)
                         )
                     }
                 }
@@ -864,6 +925,7 @@ fun SimplePracticeContent(
                 border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
             ) {
                 Column(modifier = Modifier.padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                    val haptic = LocalHapticFeedback.current
                     var textInput by remember(localCount) { mutableStateOf(if (localCount <= 0) "" else localCount.toString()) }
 
                     Row(
@@ -875,6 +937,7 @@ fun SimplePracticeContent(
                         IconButton(
                             onClick = {
                                 if (localCount > 0) {
+                                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                     localCount -= 1
                                 }
                             },
@@ -921,6 +984,7 @@ fun SimplePracticeContent(
                         // Plus Button
                         IconButton(
                             onClick = {
+                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                                 val increment = if (practice.practiceType == "RECITATION") practice.incrementValue else 1
                                 localCount += increment
                             },
@@ -942,6 +1006,7 @@ fun SimplePracticeContent(
                         Button(
                             onClick = { 
                                 if (isSaving) return@Button
+                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                                 isSaving = true
                                 buttonScope.launch {
                                     viewModel.updateCustomPracticeCount(practice.id, date, count + localCount)
@@ -981,6 +1046,7 @@ fun SimplePracticeContent(
                                 InputChip(
                                     selected = false,
                                     onClick = {
+                                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                                         localCount += inc
                                     },
                                     label = { Text("+$inc", fontWeight = FontWeight.Bold) },
@@ -1001,6 +1067,7 @@ fun SimplePracticeContent(
                         // RECITATION major complete button!
                         Button(
                             onClick = {
+                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                                 val inc = practice.incrementValue
                                 localCount += inc
                             },
@@ -1496,6 +1563,7 @@ fun SandhyaIntervalCard(
     accentColor: Color = MaterialTheme.colorScheme.primary,
     modifier: Modifier = Modifier
 ) {
+    val haptic = LocalHapticFeedback.current
     var isPunasExpanded by remember { mutableStateOf(punasCount > 0) }
     var showCustomAddDialog by remember { mutableStateOf(false) }
 
@@ -1514,15 +1582,15 @@ fun SandhyaIntervalCard(
     Card(
         modifier = modifier
             .fillMaxWidth()
-            .padding(vertical = 10.dp),
+            .padding(vertical = 6.dp),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surface
         ),
         border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
-        shape = RoundedCornerShape(20.dp)
+        shape = RoundedCornerShape(16.dp)
     ) {
         Column(
-            modifier = Modifier.padding(16.dp)
+            modifier = Modifier.padding(12.dp)
         ) {
             // Header Row
             Row(
@@ -1590,6 +1658,7 @@ fun SandhyaIntervalCard(
                 IconButton(
                     onClick = {
                         if (localCount > 0) {
+                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                             localCount = (localCount - 1).coerceAtLeast(0)
                         }
                     },
@@ -1646,6 +1715,7 @@ fun SandhyaIntervalCard(
                 // Plus Target
                 IconButton(
                     onClick = {
+                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                         val base = if (localCount == -1) 0 else localCount
                         localCount = base + 1
                     },
@@ -1674,6 +1744,7 @@ fun SandhyaIntervalCard(
                 Button(
                     onClick = { 
                         if (isSaving) return@Button
+                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                         isSaving = true
                         saveScope.launch {
                             var finalCount = localCount
@@ -1713,6 +1784,7 @@ fun SandhyaIntervalCard(
 
                      Button(
                          onClick = {
+                             haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                              val base = if (localCount == -1) 0 else localCount
                              localCount = base + inc
                          },

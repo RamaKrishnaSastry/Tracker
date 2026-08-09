@@ -181,6 +181,7 @@ class PreferencesManager(context: Context) {
     fun getWeeklySankalpaTarget(): Int = prefs.getInt("weekly_sankalpa_target", 1008)
     fun setWeeklySankalpaTarget(target: Int) {
         prefs.edit().putInt("weekly_sankalpa_target", target).apply()
+        updateSettingsTimestamp()
         _weeklySankalpaTarget.value = target
     }
 

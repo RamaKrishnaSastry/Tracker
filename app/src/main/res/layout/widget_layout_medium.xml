@@ -53,7 +53,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="84 more to 108"
-            android:textColor="#888888"
+            android:textColor="#DDDDDD"
             android:textSize="10sp" />
         
         <TextView
@@ -61,7 +61,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="LT: 12450"
-            android:textColor="#555555"
+            android:textColor="#BBBBBB"
             android:textSize="9sp"
             android:layout_marginTop="4dp" />
     </LinearLayout>

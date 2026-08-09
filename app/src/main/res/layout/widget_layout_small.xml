@@ -60,8 +60,8 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:text="84 to 108"
-        android:textColor="#555555"
-        android:textSize="7sp" />
+        android:textColor="#DDDDDD"
+        android:textSize="8sp" />
 
     <LinearLayout
         android:layout_width="match_parent"

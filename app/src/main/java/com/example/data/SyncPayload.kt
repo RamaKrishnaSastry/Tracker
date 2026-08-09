@@ -17,7 +17,8 @@ data class SyncSettings(
     val gayatriColor: String? = "violet",
     val universalColor: String? = "royal",
     val updatedAt: String? = "",
-    val initialLifetimeCountUpdatedAt: String? = ""
+    val initialLifetimeCountUpdatedAt: String? = "",
+    val weeklySankalpaTarget: Int? = 1008
 )
 
 data class SyncEntry(
