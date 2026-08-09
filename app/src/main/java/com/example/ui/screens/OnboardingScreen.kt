@@ -401,13 +401,24 @@ fun OnboardingScreen(
                                 practiceTemplate = configDialogPractice,
                                 onDismiss = { showConfigDialog = null },
                                 onSave = { practice, isDefault ->
-                                    viewModel.addNewPractice(practice) { newId ->
-                                        if (isDefault) {
-                                            viewModel.setDefaultPractice(newId)
-                                        }
-                                        viewModel.setActivePractice(newId)
-                                        addedPracticeIds.add(newId)
+                                    if (practice.name.contains("Gayatri", ignoreCase = true)) {
+                                        viewModel.setGayatriConfig(
+                                            name = practice.name,
+                                            color = practice.themeColor,
+                                            isDefault = isDefault,
+                                            initialCount = practice.initialLifetimeCount
+                                        )
+                                        addedPracticeIds.add(com.example.ui.GAYATRI_PRACTICE_ID)
                                         addedPracticeNames.add(practice.name)
+                                    } else {
+                                        viewModel.addNewPractice(practice) { newId ->
+                                            if (isDefault) {
+                                                viewModel.setDefaultPractice(newId)
+                                            }
+                                            viewModel.setActivePractice(newId)
+                                            addedPracticeIds.add(newId)
+                                            addedPracticeNames.add(practice.name)
+                                        }
                                     }
                                     showConfigDialog = null
                                     android.widget.Toast.makeText(context, "${practice.name} added to dashboard", android.widget.Toast.LENGTH_SHORT).show()

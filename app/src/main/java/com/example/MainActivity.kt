@@ -14,6 +14,7 @@ import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
@@ -69,7 +70,7 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 fun MainDashboardShell(viewModel: JapaViewModel) {
-    var activeTab by remember { mutableStateOf(0) } // 0: Today, 1: History, 2: Settings
+    var activeTab by rememberSaveable { mutableStateOf(0) } // 0: Today, 1: History, 2: Settings
 
     Scaffold(
         modifier = Modifier.fillMaxSize(),

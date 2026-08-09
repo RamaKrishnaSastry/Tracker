@@ -63,7 +63,9 @@ class JapaRepository(
     }
 
     fun getCurrentUTCTimestamp(): String {
-        return dfUTC.format(Date())
+        return synchronized(dfUTC) {
+            dfUTC.format(Date())
+        }
     }
 
     /**
@@ -126,6 +128,7 @@ class JapaRepository(
                 prefs.setThemeMode(cloudPayload.settings.themeMode)
                 cloudPayload.settings.isPunascharanaEnabled?.let { prefs.setPunascharanaEnabled(it) }
                 cloudPayload.settings.universalColor?.let { prefs.setUniversalColor(it) }
+                cloudPayload.settings.gayatriColor?.let { prefs.setGayatriColor(it) }
 
                 if (cloudPayload.entries.isNotEmpty()) {
                     val cloudEntries = cloudPayload.entries.map { (date, cloudEntry) ->
@@ -141,6 +144,54 @@ class JapaRepository(
                         )
                     }
                     dao.insertEntries(cloudEntries)
+                }
+
+                if (cloudPayload.customPractices.isNotEmpty()) {
+                    val customPractices = cloudPayload.customPractices.map { cp ->
+                        CustomPractice(
+                            id = cp.id,
+                            name = cp.name,
+                            practiceType = cp.practiceType,
+                            defaultTarget = cp.defaultTarget,
+                            punasTarget = cp.punasTarget,
+                            quickAddValues = cp.quickAddValues,
+                            initialLifetimeCount = cp.initialLifetimeCount,
+                            reminderTime = cp.reminderTime,
+                            isReminderEnabled = cp.isReminderEnabled,
+                            themeColor = cp.themeColor,
+                            isWidgetPinned = cp.isWidgetPinned,
+                            isArchived = cp.isArchived,
+                            displayOrder = cp.displayOrder,
+                            isMorningEnabled = cp.isMorningEnabled,
+                            isMiddayEnabled = cp.isMiddayEnabled,
+                            isEveningEnabled = cp.isEveningEnabled,
+                            isPunascharanaEnabled = cp.isPunascharanaEnabled,
+                            incrementValue = cp.incrementValue
+                        )
+                    }
+                    customPractices.forEach {
+                        customPracticeDao.insertPractice(it)
+                    }
+                }
+
+                if (cloudPayload.customEntries.isNotEmpty()) {
+                    val customEntries = cloudPayload.customEntries.map { ce ->
+                        CustomPracticeEntry(
+                            practiceId = ce.practiceId,
+                            date = ce.date,
+                            count = ce.count,
+                            morningCount = ce.morningCount,
+                            afternoonCount = ce.afternoonCount,
+                            eveningCount = ce.eveningCount,
+                            morningPunasCount = ce.morningPunasCount,
+                            afternoonPunasCount = ce.afternoonPunasCount,
+                            eveningPunasCount = ce.eveningPunasCount,
+                            updatedAt = ce.updatedAt
+                        )
+                    }
+                    customEntries.forEach {
+                        customPracticeDao.insertOrUpdateEntry(it)
+                    }
                 }
 
                 val localTimeDisp = SimpleDateFormat("MMM dd, yyyy HH:mm:ss", Locale.getDefault()).format(Date())
@@ -242,23 +293,22 @@ class JapaRepository(
                     val isCloudSettingsNewer = cloudSettingsDate.after(localSettingsDate)
 
                     // Granular check for initial lifetime count (the accumulated base)
+                    // We use the explicit update timestamp to determine the truth
                     val localCountDate = parseTimestamp(prefs.getInitialLifetimeCountUpdatedAt())
                     val cloudCountDate = parseTimestamp(cloudPayload.settings.initialLifetimeCountUpdatedAt ?: "")
                     
                     if (cloudCountDate.after(localCountDate)) {
-                        // Cloud has a definitely newer accumulated count
+                        syncedInitialLifetimeCount = cloudPayload.initialLifetimeCount
                         if (cloudPayload.initialLifetimeCount != prefs.getInitialLifetimeCount()) {
-                            syncedInitialLifetimeCount = cloudPayload.initialLifetimeCount
                             prefs.setInitialLifetimeCount(syncedInitialLifetimeCount)
+                            prefs.setInitialLifetimeCountUpdatedAt(cloudPayload.settings.initialLifetimeCountUpdatedAt ?: "")
                             hasCloudNewerChanges = true
                         }
                     } else if (localCountDate.after(cloudCountDate)) {
-                        // Local has a newer accumulated count
                         syncedInitialLifetimeCount = prefs.getInitialLifetimeCount()
                         hasLocalNewerChanges = true
                     } else {
-                        // Timestamps same - the values should ideally match. 
-                        // If they don't, we'll keep local as the authoritative anchor for this device.
+                        // Same timestamp, they are equal
                         syncedInitialLifetimeCount = prefs.getInitialLifetimeCount()
                     }
 
@@ -296,40 +346,58 @@ class JapaRepository(
                         syncedUniversalColor = prefs.getUniversalColor()
                     }
 
-                    // Compare timestamps per entry for Gayatri Japa
+                    // Compare per entry for Gayatri Japa using non-zero priority + timestamps
                     cloudPayload.entries.forEach { (date, cloudEntry) ->
                         val localEntry = mergedEntries[date]
+                        val cloudDailyTotal = cloudEntry.dailyTotal
+                        val newLocalFromCloud = JapaEntry(
+                            date = date,
+                            pratahSandhyaCount = cloudEntry.morning,
+                            madhyahnikaSandhyaCount = cloudEntry.afternoon,
+                            sayamSandhyaCount = cloudEntry.evening,
+                            pratahPunascharanaCount = cloudEntry.pratahPunascharana ?: 0,
+                            madhyahnikaPunascharanaCount = cloudEntry.madhyahnikaPunascharana ?: 0,
+                            sayamPunascharanaCount = cloudEntry.sayamPunascharana ?: 0,
+                            updatedAt = cloudEntry.updatedAt
+                        )
+
                         if (localEntry == null) {
-                            val newLocal = JapaEntry(
-                                date = date,
-                                pratahSandhyaCount = cloudEntry.morning,
-                                madhyahnikaSandhyaCount = cloudEntry.afternoon,
-                                sayamSandhyaCount = cloudEntry.evening,
-                                pratahPunascharanaCount = cloudEntry.pratahPunascharana ?: 0,
-                                madhyahnikaPunascharanaCount = cloudEntry.madhyahnikaPunascharana ?: 0,
-                                sayamPunascharanaCount = cloudEntry.sayamPunascharana ?: 0,
-                                updatedAt = cloudEntry.updatedAt
-                            )
-                            mergedEntries[date] = newLocal
+                            mergedEntries[date] = newLocalFromCloud
                             hasCloudNewerChanges = true
                         } else {
+                            val localDailyTotal = localEntry.dailyTotal
                             val localDate = parseTimestamp(localEntry.updatedAt)
                             val cloudDate = parseTimestamp(cloudEntry.updatedAt)
-                            if (cloudDate.after(localDate)) {
-                                val updatedLocal = JapaEntry(
-                                    date = date,
-                                    pratahSandhyaCount = cloudEntry.morning,
-                                    madhyahnikaSandhyaCount = cloudEntry.afternoon,
-                                    sayamSandhyaCount = cloudEntry.evening,
-                                    pratahPunascharanaCount = cloudEntry.pratahPunascharana ?: 0,
-                                    madhyahnikaPunascharanaCount = cloudEntry.madhyahnikaPunascharana ?: 0,
-                                    sayamPunascharanaCount = cloudEntry.sayamPunascharana ?: 0,
-                                    updatedAt = cloudEntry.updatedAt
-                                )
-                                mergedEntries[date] = updatedLocal
+
+                            // Conflict Resolution (CRDT max-merge hybrid):
+                            // 1. If local has 0 progress but cloud has >0 progress, cloud wins!
+                            // 2. If cloud has 0 progress but local has >0 progress, local wins!
+                            // 3. If both have progress, we merge the individual counts using maxOf() to prevent ANY possible dataloss
+                            //    due to timezone differences, offline usage, or clock skews across multiple devices.
+                            if (localDailyTotal == 0 && cloudDailyTotal > 0) {
+                                mergedEntries[date] = newLocalFromCloud
                                 hasCloudNewerChanges = true
-                            } else if (localDate.after(cloudDate)) {
+                            } else if (cloudDailyTotal == 0 && localDailyTotal > 0) {
                                 hasLocalNewerChanges = true
+                            } else {
+                                val mergedEntry = JapaEntry(
+                                    date = date,
+                                    pratahSandhyaCount = maxOf(localEntry.pratahSandhyaCount, cloudEntry.morning),
+                                    madhyahnikaSandhyaCount = maxOf(localEntry.madhyahnikaSandhyaCount, cloudEntry.afternoon),
+                                    sayamSandhyaCount = maxOf(localEntry.sayamSandhyaCount, cloudEntry.evening),
+                                    pratahPunascharanaCount = maxOf(localEntry.pratahPunascharanaCount, cloudEntry.pratahPunascharana ?: 0),
+                                    madhyahnikaPunascharanaCount = maxOf(localEntry.madhyahnikaPunascharanaCount, cloudEntry.madhyahnikaPunascharana ?: 0),
+                                    sayamPunascharanaCount = maxOf(localEntry.sayamPunascharanaCount, cloudEntry.sayamPunascharana ?: 0),
+                                    updatedAt = if (cloudDate.after(localDate)) cloudEntry.updatedAt else localEntry.updatedAt
+                                )
+                                mergedEntries[date] = mergedEntry
+
+                                if (mergedEntry != localEntry) {
+                                    hasCloudNewerChanges = true
+                                }
+                                if (mergedEntry != newLocalFromCloud) {
+                                    hasLocalNewerChanges = true
+                                }
                             }
                         }
                     }
@@ -395,7 +463,7 @@ class JapaRepository(
                         // Check if cloud has something we don't (unlikely if timestamps match, but for safety)
                         cloudPayload.customPractices.forEach { cp ->
                             if (!mergedCustomPractices.containsKey(cp.id)) {
-                                val newLocalCp = CustomPractice(
+                                val cloudCpModel = CustomPractice(
                                     id = cp.id,
                                     name = cp.name,
                                     practiceType = cp.practiceType,
@@ -415,51 +483,68 @@ class JapaRepository(
                                     isPunascharanaEnabled = cp.isPunascharanaEnabled,
                                     incrementValue = cp.incrementValue
                                 )
-                                mergedCustomPractices[cp.id] = newLocalCp
+                                mergedCustomPractices[cp.id] = cloudCpModel
                                 hasCloudNewerChanges = true
                             }
                         }
                     }
-
-                    // Compare custom entries from cloud
+                    
+                    // Compare custom entries from cloud using non-zero priority + timestamps
                     cloudPayload.customEntries.forEach { ce ->
                         val key = "${ce.practiceId}_${ce.date}"
                         val localCe = mergedCustomEntries[key]
+                        val cloudDailyTotal = ce.dailyTotal
+                        val newLocalCeFromCloud = CustomPracticeEntry(
+                            practiceId = ce.practiceId,
+                            date = ce.date,
+                            count = ce.count,
+                            morningCount = ce.morningCount,
+                            afternoonCount = ce.afternoonCount,
+                            eveningCount = ce.eveningCount,
+                            morningPunasCount = ce.morningPunasCount,
+                            afternoonPunasCount = ce.afternoonPunasCount,
+                            eveningPunasCount = ce.eveningPunasCount,
+                            updatedAt = ce.updatedAt
+                        )
+
                         if (localCe == null) {
-                            val newLocalCe = CustomPracticeEntry(
-                                practiceId = ce.practiceId,
-                                date = ce.date,
-                                count = ce.count,
-                                morningCount = ce.morningCount,
-                                afternoonCount = ce.afternoonCount,
-                                eveningCount = ce.eveningCount,
-                                morningPunasCount = ce.morningPunasCount,
-                                afternoonPunasCount = ce.afternoonPunasCount,
-                                eveningPunasCount = ce.eveningPunasCount,
-                                updatedAt = ce.updatedAt
-                            )
-                            mergedCustomEntries[key] = newLocalCe
+                            mergedCustomEntries[key] = newLocalCeFromCloud
                             hasCloudNewerChanges = true
                         } else {
+                            val localDailyTotal = localCe.dailyTotal
                             val localDate = parseTimestamp(localCe.updatedAt)
                             val cloudDate = parseTimestamp(ce.updatedAt)
-                            if (cloudDate.after(localDate)) {
-                                val updatedCe = CustomPracticeEntry(
+
+                            // Conflict Resolution (CRDT max-merge hybrid):
+                            // 1. If local has 0 progress but cloud has >0 progress, cloud wins!
+                            // 2. If cloud has 0 progress but local has >0 progress, local wins!
+                            // 3. If both have progress, we merge individual fields using maxOf() to prevent multi-device/timezone dataloss.
+                            if (localDailyTotal == 0 && cloudDailyTotal > 0) {
+                                mergedCustomEntries[key] = newLocalCeFromCloud
+                                hasCloudNewerChanges = true
+                            } else if (cloudDailyTotal == 0 && localDailyTotal > 0) {
+                                hasLocalNewerChanges = true
+                            } else {
+                                val mergedCe = CustomPracticeEntry(
                                     practiceId = ce.practiceId,
                                     date = ce.date,
-                                    count = ce.count,
-                                    morningCount = ce.morningCount,
-                                    afternoonCount = ce.afternoonCount,
-                                    eveningCount = ce.eveningCount,
-                                    morningPunasCount = ce.morningPunasCount,
-                                    afternoonPunasCount = ce.afternoonPunasCount,
-                                    eveningPunasCount = ce.eveningPunasCount,
-                                    updatedAt = ce.updatedAt
+                                    count = maxOf(localCe.count, ce.count),
+                                    morningCount = maxOf(localCe.morningCount, ce.morningCount),
+                                    afternoonCount = maxOf(localCe.afternoonCount, ce.afternoonCount),
+                                    eveningCount = maxOf(localCe.eveningCount, ce.eveningCount),
+                                    morningPunasCount = maxOf(localCe.morningPunasCount, ce.morningPunasCount),
+                                    afternoonPunasCount = maxOf(localCe.afternoonPunasCount, ce.afternoonPunasCount),
+                                    eveningPunasCount = maxOf(localCe.eveningPunasCount, ce.eveningPunasCount),
+                                    updatedAt = if (cloudDate.after(localDate)) ce.updatedAt else localCe.updatedAt
                                 )
-                                mergedCustomEntries[key] = updatedCe
-                                hasCloudNewerChanges = true
-                            } else if (localDate.after(cloudDate)) {
-                                hasLocalNewerChanges = true
+                                mergedCustomEntries[key] = mergedCe
+
+                                if (mergedCe != localCe) {
+                                    hasCloudNewerChanges = true
+                                }
+                                if (mergedCe != newLocalCeFromCloud) {
+                                    hasLocalNewerChanges = true
+                                }
                             }
                         }
                     }
@@ -590,8 +675,11 @@ class JapaRepository(
     }
 
     private fun parseTimestamp(timeStr: String): Date {
+        if (timeStr.isEmpty()) return Date(0)
         return try {
-            dfUTC.parse(timeStr) ?: Date(0)
+            synchronized(dfUTC) {
+                dfUTC.parse(timeStr) ?: Date(0)
+            }
         } catch (e: Exception) {
             Date(0)
         }

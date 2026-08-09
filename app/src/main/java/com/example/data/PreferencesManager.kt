@@ -72,6 +72,10 @@ class PreferencesManager(context: Context) {
     }
 
     fun getInitialLifetimeCountUpdatedAt(): String = prefs.getString("initial_lifetime_count_updated_at", "2020-01-01T00:00:00Z") ?: "2020-01-01T00:00:00Z"
+    
+    fun setInitialLifetimeCountUpdatedAt(timestamp: String) {
+        prefs.edit().putString("initial_lifetime_count_updated_at", timestamp).apply()
+    }
 
     private fun updateLifetimeCountTimestamp() {
         val now = java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", java.util.Locale.US).apply {

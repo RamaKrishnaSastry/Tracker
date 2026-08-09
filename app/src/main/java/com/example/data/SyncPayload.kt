@@ -28,7 +28,12 @@ data class SyncEntry(
     val madhyahnikaPunascharana: Int? = 0,
     val sayamPunascharana: Int? = 0,
     val updatedAt: String
-)
+) {
+    val dailyTotal: Int
+        get() = (if (morning > 0) morning else 0) + (pratahPunascharana ?: 0) +
+                (if (afternoon > 0) afternoon else 0) + (madhyahnikaPunascharana ?: 0) +
+                (if (evening > 0) evening else 0) + (sayamPunascharana ?: 0)
+}
 
 data class SyncCustomPractice(
     val id: Long,
@@ -62,4 +67,7 @@ data class SyncCustomPracticeEntry(
     val afternoonPunasCount: Int = 0,
     val eveningPunasCount: Int = 0,
     val updatedAt: String
-)
+) {
+    val dailyTotal: Int
+        get() = maxOf(0, count) + maxOf(0, morningCount) + maxOf(0, afternoonCount) + maxOf(0, eveningCount) + maxOf(0, morningPunasCount) + maxOf(0, afternoonPunasCount) + maxOf(0, eveningPunasCount)
+}

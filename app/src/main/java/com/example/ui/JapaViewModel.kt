@@ -55,6 +55,13 @@ class JapaViewModel(application: Application) : AndroidViewModel(application) {
                              defaultId == GAYATRI_PRACTICE_ID || 
                              entries.any { it.pratahSandhyaCount > 0 || it.madhyahnikaSandhyaCount > 0 || it.sayamSandhyaCount > 0 || it.pratahPunascharanaCount > 0 || it.madhyahnikaPunascharanaCount > 0 || it.sayamPunascharanaCount > 0 }
         
+        val filteredCustom = customPractices.filter { 
+            !it.name.equals(name, ignoreCase = true) && 
+            !it.name.equals("Gayatri Japa", ignoreCase = true) && 
+            !it.name.equals("Gayatri Mantra", ignoreCase = true) &&
+            !it.name.contains("Gayatri", ignoreCase = true)
+        }
+
         if (hasGayatriData) {
             val gayatriPractice = CustomPractice(
                 id = GAYATRI_PRACTICE_ID,
@@ -67,9 +74,9 @@ class JapaViewModel(application: Application) : AndroidViewModel(application) {
                 isEveningEnabled = true,
                 quickAddValues = "10,24,28,54,108"
             )
-            listOf(gayatriPractice) + customPractices
+            listOf(gayatriPractice) + filteredCustom
         } else {
-            customPractices
+            filteredCustom
         }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
@@ -84,6 +91,13 @@ class JapaViewModel(application: Application) : AndroidViewModel(application) {
                              defaultId == GAYATRI_PRACTICE_ID || 
                              entries.any { it.pratahSandhyaCount > 0 || it.madhyahnikaSandhyaCount > 0 || it.sayamSandhyaCount > 0 || it.pratahPunascharanaCount > 0 || it.madhyahnikaPunascharanaCount > 0 || it.sayamPunascharanaCount > 0 }
         
+        val filteredActive = activeCustom.filter { 
+            !it.name.equals(name, ignoreCase = true) && 
+            !it.name.equals("Gayatri Japa", ignoreCase = true) && 
+            !it.name.equals("Gayatri Mantra", ignoreCase = true) &&
+            !it.name.contains("Gayatri", ignoreCase = true)
+        }
+
         if (hasGayatriData) {
             val gayatriPractice = CustomPractice(
                 id = GAYATRI_PRACTICE_ID,
@@ -96,9 +110,9 @@ class JapaViewModel(application: Application) : AndroidViewModel(application) {
                 isEveningEnabled = true,
                 quickAddValues = "10,24,28,54,108"
             )
-            listOf(gayatriPractice) + activeCustom
+            listOf(gayatriPractice) + filteredActive
         } else {
-            activeCustom
+            filteredActive
         }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
@@ -184,6 +198,8 @@ class JapaViewModel(application: Application) : AndroidViewModel(application) {
 
 
         viewModelScope.launch {
+            // Postpone initial sync so homescreen loads instantly and feels completely lag-free
+            delay(3500)
             if (prefs.isOnboarded()) {
                 authManager.checkCurrentSession {
                     viewModelScope.launch {
@@ -270,6 +286,19 @@ class JapaViewModel(application: Application) : AndroidViewModel(application) {
 
     fun setGayatriName(name: String) {
         prefs.setGayatriName(name)
+        viewModelScope.launch {
+            repository.syncWithCloud(isLocalUpdate = true)
+        }
+    }
+
+    fun setGayatriConfig(name: String, color: String, isDefault: Boolean, initialCount: Long) {
+        prefs.setGayatriName(name)
+        prefs.setGayatriColor(color)
+        prefs.setInitialLifetimeCount(initialCount)
+        if (isDefault) {
+            prefs.setDefaultPracticeId(GAYATRI_PRACTICE_ID)
+        }
+        setActivePractice(GAYATRI_PRACTICE_ID)
         viewModelScope.launch {
             repository.syncWithCloud(isLocalUpdate = true)
         }
@@ -498,7 +527,7 @@ class JapaViewModel(application: Application) : AndroidViewModel(application) {
                     pratahPunascharanaCount = 0,
                     madhyahnikaPunascharanaCount = 0,
                     sayamPunascharanaCount = 0,
-                    updatedAt = repository.getCurrentUTCTimestamp()
+                    updatedAt = "2020-01-01T00:00:00Z" // Safe placeholder epoch so real progress always overrides it
                 )
                 dao.insertOrUpdate(newEntry)
                 Log.d(TAG, "Auto-created fresh JapaEntry for today: $todayStr")
@@ -538,41 +567,43 @@ class JapaViewModel(application: Application) : AndroidViewModel(application) {
     /**
      * Compute summary statistics on historical items
      */
-    fun getStatisticsFlow(): Flow<Stats> {
-        return combine(allEntries, initialLifetimeCount) { entries, initial ->
-            val todayStr = getTodayDateString()
-            val currentMonthStr = SimpleDateFormat("yyyy-MM", Locale.getDefault()).format(Date())
+    val statistics: StateFlow<Stats> = combine(allEntries, initialLifetimeCount) { entries, initial ->
+        val todayStr = getTodayDateString()
+        val currentMonthStr = SimpleDateFormat("yyyy-MM", Locale.getDefault()).format(Date())
 
-            var todayTotal = 0
-            var currentMonthTotal = 0
-            var lifetimeSandhyaTotal = 0L
-            var lifetimePunascharanaTotal = 0L
+        var todayTotal = 0
+        var currentMonthTotal = 0
+        var lifetimeSandhyaTotal = 0L
+        var lifetimePunascharanaTotal = 0L
 
-            entries.forEach { entry ->
-                val p = if (entry.pratahSandhyaCount > 0) entry.pratahSandhyaCount else 0
-                val m = if (entry.madhyahnikaSandhyaCount > 0) entry.madhyahnikaSandhyaCount else 0
-                val s = if (entry.sayamSandhyaCount > 0) entry.sayamSandhyaCount else 0
-                lifetimeSandhyaTotal += p + m + s
-                lifetimePunascharanaTotal += entry.pratahPunascharanaCount + entry.madhyahnikaPunascharanaCount + entry.sayamPunascharanaCount
+        entries.forEach { entry ->
+            val p = if (entry.pratahSandhyaCount > 0) entry.pratahSandhyaCount else 0
+            val m = if (entry.madhyahnikaSandhyaCount > 0) entry.madhyahnikaSandhyaCount else 0
+            val s = if (entry.sayamSandhyaCount > 0) entry.sayamSandhyaCount else 0
+            lifetimeSandhyaTotal += p + m + s
+            lifetimePunascharanaTotal += entry.pratahPunascharanaCount + entry.madhyahnikaPunascharanaCount + entry.sayamPunascharanaCount
 
-                val total = entry.dailyTotal
-                if (entry.date == todayStr) {
-                    todayTotal = total
-                }
-                if (entry.date.startsWith(currentMonthStr)) {
-                    currentMonthTotal += total
-                }
+            val total = entry.dailyTotal
+            if (entry.date == todayStr) {
+                todayTotal = total
             }
-
-            Stats(
-                todayTotal = todayTotal,
-                currentMonthTotal = currentMonthTotal,
-                lifetimeTotal = initial + lifetimeSandhyaTotal + lifetimePunascharanaTotal,
-                lifetimeSandhyaTotal = lifetimeSandhyaTotal,
-                lifetimePunascharanaTotal = lifetimePunascharanaTotal
-            )
+            if (entry.date.startsWith(currentMonthStr)) {
+                currentMonthTotal += total
+            }
         }
-    }
+
+        Stats(
+            todayTotal = todayTotal,
+            currentMonthTotal = currentMonthTotal,
+            lifetimeTotal = initial + lifetimeSandhyaTotal + lifetimePunascharanaTotal,
+            lifetimeSandhyaTotal = lifetimeSandhyaTotal,
+            lifetimePunascharanaTotal = lifetimePunascharanaTotal
+        )
+    }.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5000),
+        initialValue = Stats(0, 0, prefs.getInitialLifetimeCount(), 0, 0)
+    )
 
     /**
      * Set onboarding variables

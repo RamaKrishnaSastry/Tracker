@@ -2,6 +2,7 @@ package com.example.ui.screens
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -11,6 +12,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.Canvas
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AllInclusive
 import androidx.compose.material.icons.filled.Check
@@ -19,19 +21,37 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Analytics
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.material.icons.filled.TrendingUp
+import androidx.compose.material.icons.filled.TrendingDown
+import androidx.compose.material.icons.filled.WbSunny
+import androidx.compose.material.icons.filled.LightMode
+import androidx.compose.material.icons.filled.NightsStay
+import androidx.compose.material.icons.outlined.WbSunny
+import androidx.compose.material.icons.outlined.LightMode
+import androidx.compose.material.icons.outlined.NightsStay
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.saveable.Saver
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.unit.TextUnit
 import com.example.data.JapaEntry
 import com.example.data.CustomPractice
 import com.example.data.CustomPracticeEntry
@@ -40,6 +60,45 @@ import com.example.ui.GAYATRI_PRACTICE_ID
 import com.example.ui.theme.getMantraColor
 import java.text.SimpleDateFormat
 import java.util.*
+
+@Composable
+fun AutoResizedText(
+    text: String,
+    style: TextStyle,
+    modifier: Modifier = Modifier,
+    color: Color = Color.Unspecified,
+    maxLines: Int = 1,
+    minFontSize: TextUnit = 8.sp,
+    textAlign: TextAlign? = null
+) {
+    var resizedTextStyle by remember(text, style) { mutableStateOf(style) }
+    var shouldDraw by remember(text, style) { mutableStateOf(false) }
+
+    Text(
+        text = text,
+        color = color,
+        textAlign = textAlign,
+        modifier = modifier.drawWithContent {
+            if (shouldDraw) {
+                drawContent()
+            }
+        },
+        style = resizedTextStyle,
+        maxLines = maxLines,
+        softWrap = false,
+        overflow = TextOverflow.Clip,
+        onTextLayout = { result ->
+            if ((result.didOverflowWidth || result.didOverflowHeight) && resizedTextStyle.fontSize > minFontSize) {
+                val nextSize = (resizedTextStyle.fontSize.value * 0.88f).sp
+                resizedTextStyle = resizedTextStyle.copy(
+                    fontSize = if (nextSize < minFontSize) minFontSize else nextSize
+                )
+            } else {
+                shouldDraw = true
+            }
+        }
+    )
+}
 
 sealed class UnifiedHistoryItem(val dateString: String) {
     data class GayatriItem(val entry: JapaEntry) : UnifiedHistoryItem(entry.date)
@@ -56,22 +115,33 @@ fun HistoryScreen(
     val allCustomEntries by viewModel.allCustomPracticeEntries.collectAsState()
     val allPractices by viewModel.allCustomPractices.collectAsState()
     val searchQuery by viewModel.searchQuery.collectAsState()
-    val stats by viewModel.getStatisticsFlow().collectAsState(
-        initial = JapaViewModel.Stats(0, 0, viewModel.prefs.getInitialLifetimeCount(), 0, 0)
-    )
+    val stats by viewModel.statistics.collectAsState()
 
     val gayatriColorName by viewModel.gayatriColor.collectAsState()
     val gayatriColor = getMantraColor(gayatriColorName)
     val gayatriName by viewModel.gayatriName.collectAsState()
 
     // Selection filter: null means "Combined History"
-    var selectedMantraId by remember { mutableStateOf<Long?>(null) }
+    var selectedMantraId by rememberSaveable { mutableStateOf<Long?>(null) }
+    
+    // Calendar visible month state hoisted to align metrics row
+    val calendarSaver = remember {
+        Saver<MutableState<Calendar>, Long>(
+            save = { it.value.timeInMillis },
+            restore = { mutableStateOf(Calendar.getInstance().apply { timeInMillis = it }) }
+        )
+    }
+    val currentCalendarState = rememberSaveable(saver = calendarSaver) { mutableStateOf(Calendar.getInstance()) }
+    val currentCalendar = currentCalendarState.value
+    val currentYear = currentCalendar.get(Calendar.YEAR)
+    val currentMonth = currentCalendar.get(Calendar.MONTH) + 1 // 1-indexed
 
     // Dialog state
     var selectedEntryToEdit by remember { mutableStateOf<JapaEntry?>(null) }
     var selectedCustomEntryToEdit by remember { mutableStateOf<Pair<CustomPracticeEntry, CustomPractice>?>(null) }
+    var selectedSummaryDate by rememberSaveable { mutableStateOf<String?>(null) }
 
-    val practiceTotals by viewModel.allPracticeTotals.collectAsState(initial = emptyMap())
+    val practiceTotals by viewModel.allPracticeTotals.collectAsState()
 
     // Combined/Dynamic lifetime grand sum
     val combinedLifetimeTotal = remember(stats, allPractices, practiceTotals) {
@@ -79,6 +149,78 @@ fun HistoryScreen(
             practice.initialLifetimeCount + (practiceTotals[practice.id] ?: 0)
         }
         stats.lifetimeTotal + customTotal
+    }
+
+    // Lookup Maps for Calendar
+    val gayatriEntriesMap = remember(entries) {
+        entries.associateBy { it.date }
+    }
+    
+    val customEntriesMap = remember(allCustomEntries) {
+        allCustomEntries.associateBy { it.practiceId to it.date }
+    }
+    
+    val combinedDailyTotalsMap = remember(entries, allCustomEntries) {
+        val map = mutableMapOf<String, Int>()
+        entries.forEach { entry ->
+            map[entry.date] = (map[entry.date] ?: 0) + entry.dailyTotal
+        }
+        allCustomEntries.forEach { entry ->
+            map[entry.date] = (map[entry.date] ?: 0) + entry.dailyTotal
+        }
+        map
+    }
+
+    val monthAnalyticsList = remember(selectedMantraId, entries, allCustomEntries) {
+        if (selectedMantraId == null) return@remember emptyList<MonthAnalytics>()
+        val dailyTotals = mutableListOf<Pair<String, Int>>()
+        if (selectedMantraId == GAYATRI_PRACTICE_ID) {
+            entries.forEach { entry ->
+                if (entry.dailyTotal > 0) {
+                    dailyTotals.add(entry.date to entry.dailyTotal)
+                }
+            }
+        } else {
+            allCustomEntries.forEach { entry ->
+                if (entry.practiceId == selectedMantraId && entry.dailyTotal > 0) {
+                    dailyTotals.add(entry.date to entry.dailyTotal)
+                }
+            }
+        }
+
+        if (dailyTotals.isEmpty()) return@remember emptyList<MonthAnalytics>()
+
+        val grouped = dailyTotals.groupBy { it.first.substring(0, 7) }
+        val inputFormat = java.text.SimpleDateFormat("yyyy-MM", java.util.Locale.US)
+        val outputFormat = java.text.SimpleDateFormat("MMMM yyyy", java.util.Locale.US)
+
+        grouped.map { (monthStr, items) ->
+            val monthDate = try { inputFormat.parse(monthStr) } catch (e: Exception) { null }
+            val monthName = if (monthDate != null) outputFormat.format(monthDate) else monthStr
+
+            val totals = items.map { it.second }
+            val totalCount = totals.sum().toLong()
+            val daysLogged = totals.size
+            val averageCount = if (daysLogged > 0) totalCount.toDouble() / daysLogged else 0.0
+            
+            val daysInMonth = if (monthDate != null) {
+                val cal = java.util.Calendar.getInstance()
+                cal.time = monthDate
+                cal.getActualMaximum(java.util.Calendar.DAY_OF_MONTH)
+            } else 30
+
+            MonthAnalytics(
+                monthStr = monthStr,
+                monthName = monthName,
+                totalCount = totalCount,
+                daysLogged = daysLogged,
+                averageCount = averageCount,
+                maxCount = 0,
+                minCount = 0,
+                openValue = daysInMonth.toDouble(),
+                closeValue = 0.0
+            )
+        }.sortedByDescending { it.monthStr }
     }
 
     // List of unified history items sorted descending
@@ -150,7 +292,7 @@ fun HistoryScreen(
                     color = if (selectedMantraId == null) MaterialTheme.colorScheme.primary else if (selectedMantraId == GAYATRI_PRACTICE_ID) gayatriColor else getMantraColor(allPractices.find { it.id == selectedMantraId }?.themeColor ?: "teal")
                 )
                 Text(
-                    text = "Select a mantra card to filter, view statistics, or update logs.",
+                    text = "Select a mantra card to filter the calendar view, view statistics, or update logs.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f)
                 )
@@ -209,13 +351,15 @@ fun HistoryScreen(
                                 )
                             }
                         }
-                        Text(
+                        AutoResizedText(
                             text = String.format("%,d", combinedLifetimeTotal),
                             style = MaterialTheme.typography.titleLarge.copy(
                                 fontWeight = FontWeight.Bold,
                                 fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
                             ),
-                            color = MaterialTheme.colorScheme.primary
+                            color = MaterialTheme.colorScheme.primary,
+                            maxLines = 1,
+                            minFontSize = 11.sp
                         )
                     }
                 }
@@ -238,7 +382,7 @@ fun HistoryScreen(
                     Card(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(86.dp)
+                            .heightIn(min = 86.dp)
                             .clickable { selectedMantraId = GAYATRI_PRACTICE_ID }
                             .testTag("block_gayatri_japa"),
                         colors = CardDefaults.cardColors(
@@ -253,9 +397,9 @@ fun HistoryScreen(
                     ) {
                         Column(
                             modifier = Modifier
-                                .fillMaxSize()
+                                .fillMaxWidth()
                                 .padding(12.dp),
-                            verticalArrangement = Arrangement.SpaceBetween
+                            verticalArrangement = Arrangement.spacedBy(4.dp)
                         ) {
                             Text(
                                 text = gayatriName,
@@ -264,13 +408,15 @@ fun HistoryScreen(
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis
                             )
-                            Text(
+                            AutoResizedText(
                                 text = String.format("%,d", stats.lifetimeTotal),
                                 style = MaterialTheme.typography.titleMedium.copy(
                                     fontWeight = FontWeight.Bold,
                                     fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
                                 ),
-                                color = gayatriColor
+                                color = gayatriColor,
+                                maxLines = 1,
+                                minFontSize = 10.sp
                             )
                         }
                     }
@@ -285,7 +431,7 @@ fun HistoryScreen(
                         Card(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .height(86.dp)
+                                .heightIn(min = 86.dp)
                                 .clickable { selectedMantraId = practice.id }
                                 .testTag("block_mantra_${practice.id}"),
                             colors = CardDefaults.cardColors(
@@ -300,9 +446,9 @@ fun HistoryScreen(
                         ) {
                             Column(
                                 modifier = Modifier
-                                    .fillMaxSize()
+                                    .fillMaxWidth()
                                     .padding(12.dp),
-                                verticalArrangement = Arrangement.SpaceBetween
+                                verticalArrangement = Arrangement.spacedBy(4.dp)
                             ) {
                                 Text(
                                     text = practice.name,
@@ -311,13 +457,15 @@ fun HistoryScreen(
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis
                                 )
-                                Text(
+                                AutoResizedText(
                                     text = String.format("%,d", total),
                                     style = MaterialTheme.typography.titleMedium.copy(
                                         fontWeight = FontWeight.Bold,
                                         fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
                                     ),
-                                    color = color
+                                    color = color,
+                                    maxLines = 1,
+                                    minFontSize = 10.sp
                                 )
                             }
                         }
@@ -343,82 +491,164 @@ fun HistoryScreen(
                 }
             }
 
-            // Search Bar Field
-            item {
-                OutlinedTextField(
-                    value = searchQuery,
-                    onValueChange = { viewModel.updateSearchQuery(it) },
-                    placeholder = { Text("Search dates (e.g. 2026-06)") },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .testTag("history_search_input"),
-                    leadingIcon = {
-                        Icon(Icons.Default.Search, contentDescription = "Search dates")
-                    },
-                    trailingIcon = {
-                        if (searchQuery.isNotEmpty()) {
-                            IconButton(onClick = { viewModel.updateSearchQuery("") }) {
-                                Icon(Icons.Default.Close, contentDescription = "Clear search")
+            // 1. STATS SECTION (AT THE TOP, ABOVE CALENDAR)
+            if (selectedMantraId != null) {
+                val currentMonthStr = String.format(Locale.US, "%04d-%02d", currentYear, currentMonth)
+                val activeMonthStats = monthAnalyticsList.find { it.monthStr == currentMonthStr }
+                val accentColor = if (selectedMantraId == GAYATRI_PRACTICE_ID) gayatriColor else getMantraColor(allPractices.find { it.id == selectedMantraId }?.themeColor ?: "teal")
+                
+                if (activeMonthStats != null) {
+                    val daysInMonth = activeMonthStats.openValue.toInt()
+                    item {
+                        MonthlyCompactStatsRow(
+                            monthName = activeMonthStats.monthName,
+                            averageCount = activeMonthStats.averageCount,
+                            totalCount = activeMonthStats.totalCount,
+                            daysLogged = activeMonthStats.daysLogged,
+                            daysInMonth = daysInMonth,
+                            accentColor = accentColor
+                        )
+                    }
+                } else {
+                    item {
+                        val activeMonthName = remember(currentYear, currentMonth) {
+                            val calTemp = Calendar.getInstance().apply {
+                                set(Calendar.YEAR, currentYear)
+                                set(Calendar.MONTH, currentMonth - 1)
                             }
+                            SimpleDateFormat("MMMM yyyy", Locale.US).format(calTemp.time)
                         }
-                    },
-                    singleLine = true,
-                    shape = RoundedCornerShape(12.dp),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = MaterialTheme.colorScheme.primary,
-                        unfocusedBorderColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.15f)
-                    )
-                )
-            }
-
-            // HISTORY ENTRIES LIST
-            item {
-                Text(
-                    text = "LOGS",
-                    style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold, letterSpacing = 0.8.sp),
-                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f)
-                )
-            }
-
-            if (filteredItems.isEmpty()) {
-                item {
-                    EmptyHistoryState()
+                        val daysInActiveMonth = remember(currentYear, currentMonth) {
+                            val calTemp = Calendar.getInstance().apply {
+                                set(Calendar.YEAR, currentYear)
+                                set(Calendar.MONTH, currentMonth - 1)
+                            }
+                            calTemp.getActualMaximum(Calendar.DAY_OF_MONTH)
+                        }
+                        MonthlyCompactStatsRow(
+                            monthName = activeMonthName,
+                            averageCount = 0.0,
+                            totalCount = 0L,
+                            daysLogged = 0,
+                            daysInMonth = daysInActiveMonth,
+                            accentColor = accentColor
+                        )
+                    }
                 }
             } else {
-                items(filteredItems, key = {
-                    when (it) {
-                        is UnifiedHistoryItem.GayatriItem -> "G_${it.entry.date}"
-                        is UnifiedHistoryItem.CustomItem -> "C_${it.entry.practiceId}_${it.entry.date}"
-                    }
-                }) { unifiedItem ->
-                    when (unifiedItem) {
-                        is UnifiedHistoryItem.GayatriItem -> {
-                            HistoryItemRow(
-                                entry = unifiedItem.entry,
-                                gayatriName = gayatriName,
-                                gayatriColor = gayatriColor,
-                                onClick = { selectedEntryToEdit = unifiedItem.entry }
-                            )
-                        }
-                        is UnifiedHistoryItem.CustomItem -> {
-                            CustomHistoryItemRow(
-                                entry = unifiedItem.entry,
-                                practice = unifiedItem.practice,
-                                onClick = { selectedCustomEntryToEdit = unifiedItem.entry to unifiedItem.practice }
+                // Hint card for combined view
+                item {
+                    Card(
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
+                        ),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Analytics,
+                                contentDescription = "Analytics Info",
+                                tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f),
+                                modifier = Modifier.size(20.dp)
+                                )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "Select a specific mantra card above to view dynamic monthly averages, insights, and performance.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
                             )
                         }
                     }
                 }
             }
+
+            // 2. CALENDAR SECTION (IN THE MIDDLE)
+            item {
+                Text(
+                    text = if (selectedMantraId == null) "COMBINED PRACTICE CALENDAR" else "PRACTICE CALENDAR",
+                    style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold, letterSpacing = 0.8.sp),
+                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f),
+                    modifier = Modifier.padding(top = 12.dp, bottom = 4.dp)
+                )
+            }
+
+            item {
+                CalendarSection(
+                    selectedMantraId = selectedMantraId,
+                    gayatriEntriesMap = gayatriEntriesMap,
+                    customEntriesMap = customEntriesMap,
+                    combinedDailyTotalsMap = combinedDailyTotalsMap,
+                    activeColor = if (selectedMantraId == null) MaterialTheme.colorScheme.primary else if (selectedMantraId == GAYATRI_PRACTICE_ID) gayatriColor else getMantraColor(allPractices.find { it.id == selectedMantraId }?.themeColor ?: "teal"),
+                    allPractices = allPractices,
+                    currentCalendar = currentCalendar,
+                    onCalendarChange = { currentCalendarState.value = it },
+                    onDateClick = { clickedDate ->
+                        val mId = selectedMantraId
+                        if (mId == null) {
+                            // Read-only summary dialog for all mantras
+                            selectedSummaryDate = clickedDate
+                        } else if (mId == GAYATRI_PRACTICE_ID) {
+                            // Edit Gayatri
+                            val existing = gayatriEntriesMap[clickedDate]
+                            selectedEntryToEdit = existing ?: JapaEntry(
+                                date = clickedDate,
+                                pratahSandhyaCount = 0,
+                                madhyahnikaSandhyaCount = 0,
+                                sayamSandhyaCount = 0,
+                                pratahPunascharanaCount = 0,
+                                madhyahnikaPunascharanaCount = 0,
+                                sayamPunascharanaCount = 0,
+                                updatedAt = ""
+                            )
+                        } else {
+                            // Edit Custom
+                            val practice = allPractices.find { it.id == mId }
+                            if (practice != null) {
+                                val existing = customEntriesMap[mId to clickedDate]
+                                selectedCustomEntryToEdit = (existing ?: CustomPracticeEntry(
+                                    practiceId = mId,
+                                    date = clickedDate,
+                                    count = 0,
+                                    morningCount = 0,
+                                    afternoonCount = 0,
+                                    eveningCount = 0,
+                                    morningPunasCount = 0,
+                                    afternoonPunasCount = 0,
+                                    eveningPunasCount = 0,
+                                    updatedAt = ""
+                                )) to practice
+                            }
+                        }
+                    }
+                )
+            }
+
+            // 3. TREND / BAR CHART SECTION (AT THE BOTTOM)
+            if (selectedMantraId != null && monthAnalyticsList.isNotEmpty()) {
+                item {
+                    Spacer(modifier = Modifier.height(16.dp))
+                    MonthlyTrendSection(
+                        monthAnalyticsList = monthAnalyticsList,
+                        accentColor = if (selectedMantraId == GAYATRI_PRACTICE_ID) gayatriColor else getMantraColor(allPractices.find { it.id == selectedMantraId }?.themeColor ?: "teal")
+                    )
+                }
+            }
+
             item { Spacer(modifier = Modifier.height(24.dp)) }
         }
     }
 
     // Gayatri Model Edit Dialog
     selectedEntryToEdit?.let { entry ->
+        val isGayatriPunasEnabled by viewModel.isPunascharanaEnabled.collectAsState()
         HistoricalEditDialog(
             entry = entry,
             accentColor = gayatriColor,
+            isPunascharanaEnabled = isGayatriPunasEnabled,
             onDismiss = { selectedEntryToEdit = null },
             onSave = { morning, afternoon, evening, mornPunas, noonPunas, evePunas ->
                 viewModel.updateCounts(entry.date, morning, afternoon, evening, mornPunas, noonPunas, evePunas)
@@ -464,6 +694,476 @@ fun HistoryScreen(
             )
         }
     }
+
+    selectedSummaryDate?.let { date ->
+        val gayatriEntry = gayatriEntriesMap[date]
+        val customEntriesForDate = remember(allCustomEntries, date) {
+            allCustomEntries.filter { it.date == date }.associateBy { it.practiceId }
+        }
+        DailySummaryDialog(
+            date = date,
+            gayatriName = gayatriName,
+            gayatriColor = gayatriColor,
+            gayatriEntry = gayatriEntry,
+            allPractices = allPractices,
+            customEntries = customEntriesForDate,
+            onDismiss = { selectedSummaryDate = null }
+        )
+    }
+}
+
+@Composable
+fun CalendarSection(
+    selectedMantraId: Long?,
+    gayatriEntriesMap: Map<String, JapaEntry>,
+    customEntriesMap: Map<Pair<Long, String>, CustomPracticeEntry>,
+    combinedDailyTotalsMap: Map<String, Int>,
+    activeColor: Color,
+    allPractices: List<CustomPractice>,
+    currentCalendar: Calendar,
+    onCalendarChange: (Calendar) -> Unit,
+    onDateClick: (String) -> Unit
+) {
+    val year = currentCalendar.get(Calendar.YEAR)
+    val month = currentCalendar.get(Calendar.MONTH) + 1 // 1-indexed
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f)),
+        shape = RoundedCornerShape(16.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            // Month switcher header
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                IconButton(
+                    onClick = {
+                        val newCal = Calendar.getInstance().apply {
+                            time = currentCalendar.time
+                            add(Calendar.MONTH, -1)
+                        }
+                        onCalendarChange(newCal)
+                    }
+                ) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                        contentDescription = "Previous Month"
+                    )
+                }
+
+                val monthYearString = remember(year, month) {
+                    val sdf = SimpleDateFormat("MMMM yyyy", Locale.getDefault())
+                    val calTemp = Calendar.getInstance().apply {
+                        set(Calendar.YEAR, year)
+                        set(Calendar.MONTH, month - 1)
+                    }
+                    sdf.format(calTemp.time)
+                }
+
+                Text(
+                    text = monthYearString,
+                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+
+                IconButton(
+                    onClick = {
+                        val newCal = Calendar.getInstance().apply {
+                            time = currentCalendar.time
+                            add(Calendar.MONTH, 1)
+                        }
+                        onCalendarChange(newCal)
+                    }
+                ) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                        contentDescription = "Next Month"
+                    )
+                }
+            }
+            Spacer(modifier = Modifier.height(12.dp))
+
+            InteractiveMonthlyCalendar(
+                year = year,
+                month = month,
+                selectedMantraId = selectedMantraId,
+                gayatriEntriesMap = gayatriEntriesMap,
+                customEntriesMap = customEntriesMap,
+                combinedDailyTotalsMap = combinedDailyTotalsMap,
+                activeColor = activeColor,
+                allPractices = allPractices,
+                onDateClick = onDateClick
+            )
+        }
+    }
+}
+
+@Composable
+fun InteractiveMonthlyCalendar(
+    year: Int,
+    month: Int, // 1-indexed, i.e. 1 = Jan, 12 = Dec
+    selectedMantraId: Long?,
+    gayatriEntriesMap: Map<String, JapaEntry>,
+    customEntriesMap: Map<Pair<Long, String>, CustomPracticeEntry>,
+    combinedDailyTotalsMap: Map<String, Int>,
+    activeColor: Color,
+    allPractices: List<CustomPractice>,
+    onDateClick: (String) -> Unit
+) {
+    val cal = remember(year, month) {
+        Calendar.getInstance().apply {
+            set(Calendar.YEAR, year)
+            set(Calendar.MONTH, month - 1)
+            set(Calendar.DAY_OF_MONTH, 1)
+        }
+    }
+    val startDayOfWeek = remember(cal) { cal.get(Calendar.DAY_OF_WEEK) } // 1=Sun, 2=Mon...
+    val maxDays = remember(cal) { cal.getActualMaximum(Calendar.DAY_OF_MONTH) }
+
+    val maxValForMonth = remember(year, month, selectedMantraId, gayatriEntriesMap, customEntriesMap, combinedDailyTotalsMap, maxDays) {
+        var maxVal = 1
+        for (dayNum in 1..maxDays) {
+            val dateKey = String.format(Locale.US, "%04d-%02d-%02d", year, month, dayNum)
+            val c = if (selectedMantraId == null) {
+                combinedDailyTotalsMap[dateKey] ?: 0
+            } else if (selectedMantraId == GAYATRI_PRACTICE_ID) {
+                gayatriEntriesMap[dateKey]?.dailyTotal ?: 0
+            } else {
+                customEntriesMap[selectedMantraId to dateKey]?.dailyTotal ?: 0
+            }
+            if (c > maxVal) {
+                maxVal = c
+            }
+        }
+        maxVal.toFloat()
+    }
+
+    Column(
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        // Week Days Header
+        Row(modifier = Modifier.fillMaxWidth()) {
+            val daysOfWeek = listOf("Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat")
+            daysOfWeek.forEach { day ->
+                Text(
+                    text = day,
+                    modifier = Modifier.weight(1f),
+                    textAlign = TextAlign.Center,
+                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                )
+            }
+        }
+        Spacer(modifier = Modifier.height(8.dp))
+
+        var currentDay = 1
+        for (week in 0..5) {
+            if (currentDay > maxDays) break
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                for (dayOfWeek in 1..7) {
+                    if (week == 0 && dayOfWeek < startDayOfWeek) {
+                        // Empty box before start of month
+                        Box(modifier = Modifier.weight(1f).aspectRatio(0.82f).padding(2.dp))
+                    } else if (currentDay <= maxDays) {
+                        val dayNum = currentDay
+                        val dateKey = String.format(Locale.US, "%04d-%02d-%02d", year, month, dayNum)
+                        
+                        // Get count for this date based on selection
+                        val count = if (selectedMantraId == null) {
+                            combinedDailyTotalsMap[dateKey] ?: 0
+                        } else if (selectedMantraId == GAYATRI_PRACTICE_ID) {
+                            gayatriEntriesMap[dateKey]?.dailyTotal ?: 0
+                        } else {
+                            customEntriesMap[selectedMantraId to dateKey]?.dailyTotal ?: 0
+                        }
+
+                        val isToday = remember {
+                            val todayStr = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
+                            dateKey == todayStr
+                        }
+
+                        val hasCount = count > 0
+
+                        val intensityAlpha = if (hasCount) {
+                            val ratio = count.toFloat() / maxValForMonth
+                            0.12f + (ratio * 0.73f) // scale nicely between 0.12f and 0.85f
+                        } else {
+                            0f
+                        }
+
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .aspectRatio(0.82f)
+                                .padding(2.dp)
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(
+                                    when {
+                                        hasCount -> activeColor.copy(alpha = intensityAlpha)
+                                        isToday -> MaterialTheme.colorScheme.primary.copy(alpha = 0.08f)
+                                        else -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.02f)
+                                    }
+                                )
+                                .border(
+                                    width = if (isToday) 1.5.dp else if (hasCount) 0.5.dp else 0.dp,
+                                    color = if (isToday) activeColor else if (hasCount) activeColor.copy(alpha = 0.3f) else Color.Transparent,
+                                    shape = RoundedCornerShape(8.dp)
+                                )
+                                .clickable {
+                                    onDateClick(dateKey)
+                                },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.SpaceBetween,
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .padding(vertical = 4.dp, horizontal = 2.dp)
+                            ) {
+                                val isDarkTheme = androidx.compose.foundation.isSystemInDarkTheme()
+                                val dayTextColor = when {
+                                    hasCount && intensityAlpha >= 0.45f -> Color.White
+                                    hasCount -> if (isDarkTheme) Color.White else MaterialTheme.colorScheme.onSurface
+                                    isToday -> activeColor
+                                    else -> MaterialTheme.colorScheme.onSurface
+                                }
+                                Text(
+                                    text = dayNum.toString(),
+                                    style = MaterialTheme.typography.bodyMedium.copy(
+                                        fontWeight = if (isToday || hasCount) FontWeight.Bold else FontWeight.Normal,
+                                        fontSize = 12.sp
+                                    ),
+                                    color = dayTextColor
+                                )
+                                if (hasCount) {
+                                    val badgeBg = if (intensityAlpha >= 0.45f) {
+                                        Color.Black.copy(alpha = 0.22f)
+                                    } else {
+                                        activeColor.copy(alpha = 0.22f)
+                                    }
+                                    val badgeTextColor = if (intensityAlpha >= 0.45f || isDarkTheme) {
+                                        Color.White
+                                    } else {
+                                        activeColor
+                                    }
+                                    Box(
+                                        modifier = Modifier
+                                            .clip(RoundedCornerShape(4.dp))
+                                            .background(badgeBg)
+                                            .padding(horizontal = 3.dp, vertical = 1.dp),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        AutoResizedText(
+                                            text = formatCountCompact(count),
+                                            style = TextStyle(
+                                                fontSize = 8.5.sp,
+                                                fontWeight = FontWeight.ExtraBold,
+                                                letterSpacing = (-0.2).sp
+                                            ),
+                                            color = badgeTextColor,
+                                            maxLines = 1,
+                                            minFontSize = 6.sp,
+                                            textAlign = TextAlign.Center
+                                        )
+                                    }
+                                } else {
+                                    // Empty placeholder to keep day numbers perfectly aligned across rows
+                                    Spacer(modifier = Modifier.height(11.dp))
+                                }
+                            }
+                        }
+                        currentDay++
+                    } else {
+                        // Empty box after end of month
+                        Box(modifier = Modifier.weight(1f).aspectRatio(0.82f).padding(2.dp))
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun DailySummaryDialog(
+    date: String,
+    gayatriName: String,
+    gayatriColor: Color,
+    gayatriEntry: JapaEntry?,
+    allPractices: List<CustomPractice>,
+    customEntries: Map<Long, CustomPracticeEntry>,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            val formattedDate = remember(date) {
+                try {
+                    val inputSdf = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
+                    val outputSdf = SimpleDateFormat("EEEE, d MMMM yyyy", Locale.getDefault())
+                    val d = inputSdf.parse(date)
+                    if (d != null) outputSdf.format(d) else date
+                } catch (e: Exception) {
+                    date
+                }
+            }
+            Text(
+                text = formattedDate,
+                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
+            )
+        },
+        text = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Text(
+                    text = "Mantra Japa Summary",
+                    style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold, letterSpacing = 0.5.sp),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                )
+
+                // Gayatri total count
+                val gCount = gayatriEntry?.dailyTotal ?: 0
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(gayatriColor.copy(alpha = 0.08f), RoundedCornerShape(8.dp))
+                        .padding(12.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = gayatriName,
+                            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                            color = gayatriColor
+                        )
+                        if (gayatriEntry != null && gCount > 0) {
+                            Text(
+                                text = buildString {
+                                    val parts = mutableListOf<String>()
+                                    if (gayatriEntry.pratahSandhyaCount > 0) parts.add("Morning: ${gayatriEntry.pratahSandhyaCount}")
+                                    if (gayatriEntry.madhyahnikaSandhyaCount > 0) parts.add("Afternoon: ${gayatriEntry.madhyahnikaSandhyaCount}")
+                                    if (gayatriEntry.sayamSandhyaCount > 0) parts.add("Evening: ${gayatriEntry.sayamSandhyaCount}")
+                                    
+                                    val punasTotal = gayatriEntry.pratahPunascharanaCount + gayatriEntry.madhyahnikaPunascharanaCount + gayatriEntry.sayamPunascharanaCount
+                                    if (punasTotal > 0) parts.add("Punascharana: $punasTotal")
+                                    append(parts.joinToString(" • "))
+                                },
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
+                            )
+                        }
+                    }
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = String.format(Locale.US, "%,d", gCount),
+                        style = MaterialTheme.typography.titleMedium.copy(
+                            fontWeight = FontWeight.Bold,
+                            fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
+                        ),
+                        color = gayatriColor
+                    )
+                }
+
+                // Custom practices
+                allPractices.filter { it.id != GAYATRI_PRACTICE_ID }.forEach { practice ->
+                    val entry = customEntries[practice.id]
+                    val count = entry?.dailyTotal ?: 0
+                    val color = getMantraColor(practice.themeColor)
+
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(color.copy(alpha = 0.08f), RoundedCornerShape(8.dp))
+                            .padding(12.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = practice.name,
+                                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                                color = color
+                            )
+                            if (entry != null && count > 0) {
+                                Text(
+                                    text = if (practice.practiceType == "SANDHYA") {
+                                        buildString {
+                                            val parts = mutableListOf<String>()
+                                            if (entry.morningCount > 0) parts.add("Morning: ${entry.morningCount}")
+                                            if (entry.afternoonCount > 0) parts.add("Afternoon: ${entry.afternoonCount}")
+                                            if (entry.eveningCount > 0) parts.add("Evening: ${entry.eveningCount}")
+                                            val punasTotal = entry.morningPunasCount + entry.afternoonPunasCount + entry.eveningPunasCount
+                                            if (punasTotal > 0) parts.add("Punascharana: $punasTotal")
+                                            append(parts.joinToString(" • "))
+                                        }
+                                    } else {
+                                        "Count: ${entry.count}"
+                                    },
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
+                                )
+                            }
+                        }
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = String.format(Locale.US, "%,d", count),
+                            style = MaterialTheme.typography.titleMedium.copy(
+                                fontWeight = FontWeight.Bold,
+                                fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
+                            ),
+                            color = color
+                        )
+                    }
+                }
+                
+                // Grand total for the day
+                val grandTotal = gCount + allPractices.filter { it.id != GAYATRI_PRACTICE_ID }.sumOf { customEntries[it.id]?.dailyTotal ?: 0 }
+                Divider(color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f))
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 4.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "GRAND TOTAL",
+                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Text(
+                        text = String.format(Locale.US, "%,d", grandTotal),
+                        style = MaterialTheme.typography.titleLarge.copy(
+                            fontWeight = FontWeight.Bold,
+                            fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
+                        ),
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = onDismiss,
+                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+            ) {
+                Text("Close")
+            }
+        }
+    )
 }
 
 @Composable
@@ -702,9 +1402,117 @@ fun EmptyHistoryState() {
 }
 
 @Composable
+fun CurrentCountSummaryBox(
+    morning: Int,
+    afternoon: Int,
+    evening: Int,
+    morningPunas: Int,
+    afternoonPunas: Int,
+    eveningPunas: Int,
+    isPunasEnabled: Boolean,
+    accentColor: Color
+) {
+    val m = if (morning == -1) 0 else morning
+    val a = if (afternoon == -1) 0 else afternoon
+    val e = if (evening == -1) 0 else evening
+    val mp = if (morningPunas == -1) 0 else morningPunas
+    val ap = if (afternoonPunas == -1) 0 else afternoonPunas
+    val ep = if (eveningPunas == -1) 0 else eveningPunas
+    
+    val totalCount = m + a + e + mp + ap + ep
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = accentColor.copy(alpha = 0.08f)
+        ),
+        shape = RoundedCornerShape(16.dp),
+        border = BorderStroke(1.dp, accentColor.copy(alpha = 0.25f))
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                text = "CURRENT DAY TOTAL",
+                style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.ExtraBold, letterSpacing = 0.8.sp),
+                color = accentColor
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = String.format(java.util.Locale.US, "%,d", totalCount),
+                style = MaterialTheme.typography.headlineLarge.copy(
+                    fontWeight = FontWeight.ExtraBold,
+                    fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
+                ),
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            
+            Spacer(modifier = Modifier.height(12.dp))
+            HorizontalDivider(color = accentColor.copy(alpha = 0.15f))
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // Breakdown
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceEvenly
+            ) {
+                // Pratah
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(
+                        text = "Pratah",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                    )
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text(
+                        text = if (morning == -1) "Passed" else "${m + mp}",
+                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                }
+
+                // Madhyahnika
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(
+                        text = "Noon",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                    )
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text(
+                        text = if (afternoon == -1) "Passed" else "${a + ap}",
+                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                }
+
+                // Sayam
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(
+                        text = "Sayam",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                    )
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text(
+                        text = if (evening == -1) "Passed" else "${e + ep}",
+                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
 fun HistoricalEditDialog(
     entry: JapaEntry,
     accentColor: Color,
+    isPunascharanaEnabled: Boolean,
     onDismiss: () -> Unit,
     onSave: (Int, Int, Int, Int, Int, Int) -> Unit
 ) {
@@ -717,108 +1525,386 @@ fun HistoricalEditDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
+        shape = RoundedCornerShape(24.dp),
+        containerColor = MaterialTheme.colorScheme.surface,
+        tonalElevation = 6.dp,
         title = {
-            Text(
-                "Edit Japa & Punascharana: ${entry.date}",
-                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
-            )
+            val formattedTitleDate = remember(entry.date) {
+                try {
+                    val inputSdf = SimpleDateFormat("yyyy-MM-dd", Locale.US)
+                    val outputSdf = SimpleDateFormat("EEEE, d MMM yyyy", Locale.US)
+                    val d = inputSdf.parse(entry.date)
+                    if (d != null) outputSdf.format(d) else entry.date
+                } catch (e: Exception) {
+                    entry.date
+                }
+            }
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier.fillMaxWidth().padding(top = 12.dp)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(56.dp)
+                        .background(accentColor.copy(alpha = 0.12f), CircleShape),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Edit,
+                        contentDescription = null,
+                        tint = accentColor,
+                        modifier = Modifier.size(26.dp)
+                    )
+                }
+                Spacer(modifier = Modifier.height(12.dp))
+                Text(
+                    text = "Edit Japa Counts",
+                    style = MaterialTheme.typography.titleLarge.copy(
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 0.25.sp
+                    ),
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = formattedTitleDate,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                )
+            }
         },
         text = {
             val scrollState = rememberScrollState()
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .verticalScroll(scrollState),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
+                    .verticalScroll(scrollState)
+                    .padding(vertical = 4.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
+                CurrentCountSummaryBox(
+                    morning = entry.pratahSandhyaCount,
+                    afternoon = entry.madhyahnikaSandhyaCount,
+                    evening = entry.sayamSandhyaCount,
+                    morningPunas = entry.pratahPunascharanaCount,
+                    afternoonPunas = entry.madhyahnikaPunascharanaCount,
+                    eveningPunas = entry.sayamPunascharanaCount,
+                    isPunasEnabled = isPunascharanaEnabled,
+                    accentColor = accentColor
+                )
+
                 Text(
-                    "Editing counts for a historical date. Enter whole numbers for Sandhya and Punascharana.",
+                    text = "Configure Counts below. Enter whole numbers, or -1 if the session was passed.",
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
                 )
 
-                Text("Sandhyavandanam Counts (-1 for Passed)", style = MaterialTheme.typography.titleSmall, color = accentColor)
-                OutlinedTextField(
-                    value = morningInput,
-                    onValueChange = { if (it.all { c -> c.isDigit() || c == '-' }) morningInput = it },
-                    label = { Text("Morning (Pratah) Sandhya") },
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth().testTag("dialog_edit_morning")
-                )
+                if (isPunascharanaEnabled) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        Column(
+                            modifier = Modifier.weight(1f),
+                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            Text(
+                                text = "Sandhya Counts",
+                                style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                                color = accentColor
+                            )
 
-                OutlinedTextField(
-                    value = afternoonInput,
-                    onValueChange = { if (it.all { c -> c.isDigit() || c == '-' }) afternoonInput = it },
-                    label = { Text("Noon (Madhyahnika) Sandhya") },
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth().testTag("dialog_edit_afternoon")
-                )
+                            OutlinedTextField(
+                                value = morningInput,
+                                onValueChange = { if (it.all { c -> c.isDigit() || c == '-' }) morningInput = it },
+                                label = { Text("Pratah") },
+                                placeholder = { Text("0") },
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                singleLine = true,
+                                shape = RoundedCornerShape(12.dp),
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedBorderColor = accentColor,
+                                    focusedLabelColor = accentColor,
+                                    cursorColor = accentColor,
+                                    unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.25f)
+                                ),
+                                leadingIcon = {
+                                    Icon(
+                                        imageVector = Icons.Default.WbSunny,
+                                        contentDescription = null,
+                                        tint = accentColor.copy(alpha = 0.8f),
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                },
+                                modifier = Modifier.fillMaxWidth().testTag("dialog_edit_morning")
+                            )
 
-                OutlinedTextField(
-                    value = eveningInput,
-                    onValueChange = { if (it.all { c -> c.isDigit() || c == '-' }) eveningInput = it },
-                    label = { Text("Evening (Sayam) Sandhya") },
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth().testTag("dialog_edit_evening")
-                )
+                            OutlinedTextField(
+                                value = afternoonInput,
+                                onValueChange = { if (it.all { c -> c.isDigit() || c == '-' }) afternoonInput = it },
+                                label = { Text("Madhyahnika") },
+                                placeholder = { Text("0") },
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                singleLine = true,
+                                shape = RoundedCornerShape(12.dp),
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedBorderColor = accentColor,
+                                    focusedLabelColor = accentColor,
+                                    cursorColor = accentColor,
+                                    unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.25f)
+                                ),
+                                leadingIcon = {
+                                    Icon(
+                                        imageVector = Icons.Default.LightMode,
+                                        contentDescription = null,
+                                        tint = accentColor.copy(alpha = 0.8f),
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                },
+                                modifier = Modifier.fillMaxWidth().testTag("dialog_edit_afternoon")
+                            )
 
-                Text("Additional Japa (Punascharana)", style = MaterialTheme.typography.titleSmall, color = accentColor)
-                OutlinedTextField(
-                    value = morningPunasInput,
-                    onValueChange = { if (it.all { c -> c.isDigit() }) morningPunasInput = it },
-                    label = { Text("Pratah Punascharana") },
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth().testTag("dialog_edit_morning_punas")
-                )
+                            OutlinedTextField(
+                                value = eveningInput,
+                                onValueChange = { if (it.all { c -> c.isDigit() || c == '-' }) eveningInput = it },
+                                label = { Text("Sayam") },
+                                placeholder = { Text("0") },
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                singleLine = true,
+                                shape = RoundedCornerShape(12.dp),
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedBorderColor = accentColor,
+                                    focusedLabelColor = accentColor,
+                                    cursorColor = accentColor,
+                                    unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.25f)
+                                ),
+                                leadingIcon = {
+                                    Icon(
+                                        imageVector = Icons.Default.NightsStay,
+                                        contentDescription = null,
+                                        tint = accentColor.copy(alpha = 0.8f),
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                },
+                                modifier = Modifier.fillMaxWidth().testTag("dialog_edit_evening")
+                            )
+                        }
 
-                OutlinedTextField(
-                    value = afternoonPunasInput,
-                    onValueChange = { if (it.all { c -> c.isDigit() }) afternoonPunasInput = it },
-                    label = { Text("Madhyahnika Punascharana") },
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth().testTag("dialog_edit_afternoon_punas")
-                )
+                        Column(
+                            modifier = Modifier.weight(1f),
+                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            Text(
+                                text = "Punascharana",
+                                style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                                color = accentColor
+                            )
 
-                OutlinedTextField(
-                    value = eveningPunasInput,
-                    onValueChange = { if (it.all { c -> c.isDigit() }) eveningPunasInput = it },
-                    label = { Text("Sayam Punascharana") },
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth().testTag("dialog_edit_evening_punas")
-                )
+                            OutlinedTextField(
+                                value = morningPunasInput,
+                                onValueChange = { if (it.all { c -> c.isDigit() }) morningPunasInput = it },
+                                label = { Text("Pratah") },
+                                placeholder = { Text("0") },
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                singleLine = true,
+                                shape = RoundedCornerShape(12.dp),
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedBorderColor = accentColor,
+                                    focusedLabelColor = accentColor,
+                                    cursorColor = accentColor,
+                                    unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.25f)
+                                ),
+                                leadingIcon = {
+                                    Icon(
+                                        imageVector = Icons.Outlined.WbSunny,
+                                        contentDescription = null,
+                                        tint = accentColor.copy(alpha = 0.6f),
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                },
+                                modifier = Modifier.fillMaxWidth().testTag("dialog_edit_morning_punas")
+                            )
+
+                            OutlinedTextField(
+                                value = afternoonPunasInput,
+                                onValueChange = { if (it.all { c -> c.isDigit() }) afternoonPunasInput = it },
+                                label = { Text("Madhyahnika") },
+                                placeholder = { Text("0") },
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                singleLine = true,
+                                shape = RoundedCornerShape(12.dp),
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedBorderColor = accentColor,
+                                    focusedLabelColor = accentColor,
+                                    cursorColor = accentColor,
+                                    unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.25f)
+                                ),
+                                leadingIcon = {
+                                    Icon(
+                                        imageVector = Icons.Outlined.LightMode,
+                                        contentDescription = null,
+                                        tint = accentColor.copy(alpha = 0.6f),
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                },
+                                modifier = Modifier.fillMaxWidth().testTag("dialog_edit_afternoon_punas")
+                            )
+
+                            OutlinedTextField(
+                                value = eveningPunasInput,
+                                onValueChange = { if (it.all { c -> c.isDigit() }) eveningPunasInput = it },
+                                label = { Text("Sayam") },
+                                placeholder = { Text("0") },
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                singleLine = true,
+                                shape = RoundedCornerShape(12.dp),
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedBorderColor = accentColor,
+                                    focusedLabelColor = accentColor,
+                                    cursorColor = accentColor,
+                                    unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.25f)
+                                ),
+                                leadingIcon = {
+                                    Icon(
+                                        imageVector = Icons.Outlined.NightsStay,
+                                        contentDescription = null,
+                                        tint = accentColor.copy(alpha = 0.6f),
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                },
+                                modifier = Modifier.fillMaxWidth().testTag("dialog_edit_evening_punas")
+                            )
+                        }
+                    }
+                } else {
+                    Column(
+                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            text = "Sandhya Counts",
+                            style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                            color = accentColor
+                        )
+
+                        OutlinedTextField(
+                            value = morningInput,
+                            onValueChange = { if (it.all { c -> c.isDigit() || c == '-' }) morningInput = it },
+                            label = { Text("Morning (Pratah) Sandhya") },
+                            placeholder = { Text("0") },
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            singleLine = true,
+                            shape = RoundedCornerShape(12.dp),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = accentColor,
+                                focusedLabelColor = accentColor,
+                                cursorColor = accentColor,
+                                unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.25f)
+                            ),
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = Icons.Default.WbSunny,
+                                    contentDescription = null,
+                                    tint = accentColor.copy(alpha = 0.8f),
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            },
+                            modifier = Modifier.fillMaxWidth().testTag("dialog_edit_morning")
+                        )
+
+                        OutlinedTextField(
+                            value = afternoonInput,
+                            onValueChange = { if (it.all { c -> c.isDigit() || c == '-' }) afternoonInput = it },
+                            label = { Text("Noon (Madhyahnika) Sandhya") },
+                            placeholder = { Text("0") },
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            singleLine = true,
+                            shape = RoundedCornerShape(12.dp),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = accentColor,
+                                focusedLabelColor = accentColor,
+                                cursorColor = accentColor,
+                                unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.25f)
+                            ),
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = Icons.Default.LightMode,
+                                    contentDescription = null,
+                                    tint = accentColor.copy(alpha = 0.8f),
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            },
+                            modifier = Modifier.fillMaxWidth().testTag("dialog_edit_afternoon")
+                        )
+
+                        OutlinedTextField(
+                            value = eveningInput,
+                            onValueChange = { if (it.all { c -> c.isDigit() || c == '-' }) eveningInput = it },
+                            label = { Text("Evening (Sayam) Sandhya") },
+                            placeholder = { Text("0") },
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            singleLine = true,
+                            shape = RoundedCornerShape(12.dp),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = accentColor,
+                                focusedLabelColor = accentColor,
+                                cursorColor = accentColor,
+                                unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.25f)
+                            ),
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = Icons.Default.NightsStay,
+                                    contentDescription = null,
+                                    tint = accentColor.copy(alpha = 0.8f),
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            },
+                            modifier = Modifier.fillMaxWidth().testTag("dialog_edit_evening")
+                        )
+                    }
+                }
             }
         },
         confirmButton = {
-            Button(
-                onClick = {
-                    val m = morningInput.toIntOrNull() ?: 0
-                    val a = afternoonInput.toIntOrNull() ?: 0
-                    val ev = eveningInput.toIntOrNull() ?: 0
-                    val mp = morningPunasInput.toIntOrNull() ?: 0
-                    val ap = afternoonPunasInput.toIntOrNull() ?: 0
-                    val ep = eveningPunasInput.toIntOrNull() ?: 0
-                    onSave(m, a, ev, mp, ap, ep)
-                },
-                colors = ButtonDefaults.buttonColors(containerColor = accentColor),
-                modifier = Modifier.testTag("dialog_save_button")
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 8.dp, vertical = 4.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Text("Save Changes")
+                Button(
+                    onClick = {
+                        val m = morningInput.toIntOrNull() ?: 0
+                        val a = afternoonInput.toIntOrNull() ?: 0
+                        val ev = eveningInput.toIntOrNull() ?: 0
+                        val mp = morningPunasInput.toIntOrNull() ?: 0
+                        val ap = afternoonPunasInput.toIntOrNull() ?: 0
+                        val ep = eveningPunasInput.toIntOrNull() ?: 0
+                        onSave(m, a, ev, mp, ap, ep)
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = accentColor),
+                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(48.dp)
+                        .testTag("dialog_save_button")
+                ) {
+                    Text("Save Changes", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodyMedium)
+                }
+                TextButton(
+                    onClick = onDismiss,
+                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(44.dp)
+                        .testTag("dialog_dismiss_button")
+                ) {
+                    Text("Cancel", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
             }
         },
-        dismissButton = {
-            TextButton(
-                onClick = onDismiss,
-                modifier = Modifier.testTag("dialog_dismiss_button")
-            ) {
-                Text("Cancel")
-            }
-        }
+        dismissButton = null
     )
 }
 
@@ -840,104 +1926,386 @@ fun CustomSandhyaEditDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
+        shape = RoundedCornerShape(24.dp),
+        containerColor = MaterialTheme.colorScheme.surface,
+        tonalElevation = 6.dp,
         title = {
-            Text(
-                "Edit ${practice.name}: ${entry.date}",
-                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
-            )
+            val formattedTitleDate = remember(entry.date) {
+                try {
+                    val inputSdf = SimpleDateFormat("yyyy-MM-dd", Locale.US)
+                    val outputSdf = SimpleDateFormat("EEEE, d MMM yyyy", Locale.US)
+                    val d = inputSdf.parse(entry.date)
+                    if (d != null) outputSdf.format(d) else entry.date
+                } catch (e: Exception) {
+                    entry.date
+                }
+            }
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier.fillMaxWidth().padding(top = 12.dp)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(56.dp)
+                        .background(mantraColor.copy(alpha = 0.12f), CircleShape),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Edit,
+                        contentDescription = null,
+                        tint = mantraColor,
+                        modifier = Modifier.size(26.dp)
+                    )
+                }
+                Spacer(modifier = Modifier.height(12.dp))
+                Text(
+                    text = "Edit Japa Counts",
+                    style = MaterialTheme.typography.titleLarge.copy(
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 0.25.sp
+                    ),
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = formattedTitleDate,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                )
+            }
         },
         text = {
             val scrollState = rememberScrollState()
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .verticalScroll(scrollState),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
+                    .verticalScroll(scrollState)
+                    .padding(vertical = 4.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
+                CurrentCountSummaryBox(
+                    morning = entry.morningCount,
+                    afternoon = entry.afternoonCount,
+                    evening = entry.eveningCount,
+                    morningPunas = entry.morningPunasCount,
+                    afternoonPunas = entry.afternoonPunasCount,
+                    eveningPunas = entry.eveningPunasCount,
+                    isPunasEnabled = practice.isPunascharanaEnabled,
+                    accentColor = mantraColor
+                )
+
                 Text(
-                    "Configure individual Sandhya and additional japa counts below.",
+                    text = "Configure Counts below. Enter whole numbers, or -1 if the session was passed.",
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
                 )
 
-                Text("Sandhya Counts", style = MaterialTheme.typography.titleSmall, color = mantraColor)
-                OutlinedTextField(
-                    value = morningInput,
-                    onValueChange = { if (it.all { c -> c.isDigit() }) morningInput = it },
-                    label = { Text("Morning (Pratah) Count") },
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
-                )
+                if (practice.isPunascharanaEnabled) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        Column(
+                            modifier = Modifier.weight(1f),
+                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            Text(
+                                text = "Sandhya Counts",
+                                style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                                color = mantraColor
+                            )
 
-                OutlinedTextField(
-                    value = afternoonInput,
-                    onValueChange = { if (it.all { c -> c.isDigit() }) afternoonInput = it },
-                    label = { Text("Noon (Madhyahnika) Count") },
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
-                )
+                            OutlinedTextField(
+                                value = morningInput,
+                                onValueChange = { if (it.all { c -> c.isDigit() || c == '-' }) morningInput = it },
+                                label = { Text("Pratah") },
+                                placeholder = { Text("0") },
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                singleLine = true,
+                                shape = RoundedCornerShape(12.dp),
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedBorderColor = mantraColor,
+                                    focusedLabelColor = mantraColor,
+                                    cursorColor = mantraColor,
+                                    unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.25f)
+                                ),
+                                leadingIcon = {
+                                    Icon(
+                                        imageVector = Icons.Default.WbSunny,
+                                        contentDescription = null,
+                                        tint = mantraColor.copy(alpha = 0.8f),
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                },
+                                modifier = Modifier.fillMaxWidth().testTag("dialog_edit_morning")
+                            )
 
-                OutlinedTextField(
-                    value = eveningInput,
-                    onValueChange = { if (it.all { c -> c.isDigit() }) eveningInput = it },
-                    label = { Text("Evening (Sayam) Count") },
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
-                )
+                            OutlinedTextField(
+                                value = afternoonInput,
+                                onValueChange = { if (it.all { c -> c.isDigit() || c == '-' }) afternoonInput = it },
+                                label = { Text("Madhyahnika") },
+                                placeholder = { Text("0") },
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                singleLine = true,
+                                shape = RoundedCornerShape(12.dp),
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedBorderColor = mantraColor,
+                                    focusedLabelColor = mantraColor,
+                                    cursorColor = mantraColor,
+                                    unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.25f)
+                                ),
+                                leadingIcon = {
+                                    Icon(
+                                        imageVector = Icons.Default.LightMode,
+                                        contentDescription = null,
+                                        tint = mantraColor.copy(alpha = 0.8f),
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                },
+                                modifier = Modifier.fillMaxWidth().testTag("dialog_edit_afternoon")
+                            )
 
-                Text("Additional Japa (Punascharana)", style = MaterialTheme.typography.titleSmall, color = mantraColor)
-                OutlinedTextField(
-                    value = morningPunasInput,
-                    onValueChange = { if (it.all { c -> c.isDigit() }) morningPunasInput = it },
-                    label = { Text("Pratah Punascharana") },
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
-                )
+                            OutlinedTextField(
+                                value = eveningInput,
+                                onValueChange = { if (it.all { c -> c.isDigit() || c == '-' }) eveningInput = it },
+                                label = { Text("Sayam") },
+                                placeholder = { Text("0") },
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                singleLine = true,
+                                shape = RoundedCornerShape(12.dp),
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedBorderColor = mantraColor,
+                                    focusedLabelColor = mantraColor,
+                                    cursorColor = mantraColor,
+                                    unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.25f)
+                                ),
+                                leadingIcon = {
+                                    Icon(
+                                        imageVector = Icons.Default.NightsStay,
+                                        contentDescription = null,
+                                        tint = mantraColor.copy(alpha = 0.8f),
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                },
+                                modifier = Modifier.fillMaxWidth().testTag("dialog_edit_evening")
+                            )
+                        }
 
-                OutlinedTextField(
-                    value = afternoonPunasInput,
-                    onValueChange = { if (it.all { c -> c.isDigit() }) afternoonPunasInput = it },
-                    label = { Text("Madhyahnika Punascharana") },
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
-                )
+                        Column(
+                            modifier = Modifier.weight(1f),
+                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            Text(
+                                text = "Punascharana",
+                                style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                                color = mantraColor
+                            )
 
-                OutlinedTextField(
-                    value = eveningPunasInput,
-                    onValueChange = { if (it.all { c -> c.isDigit() }) eveningPunasInput = it },
-                    label = { Text("Sayam Punascharana") },
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
-                )
+                            OutlinedTextField(
+                                value = morningPunasInput,
+                                onValueChange = { if (it.all { c -> c.isDigit() }) morningPunasInput = it },
+                                label = { Text("Pratah") },
+                                placeholder = { Text("0") },
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                singleLine = true,
+                                shape = RoundedCornerShape(12.dp),
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedBorderColor = mantraColor,
+                                    focusedLabelColor = mantraColor,
+                                    cursorColor = mantraColor,
+                                    unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.25f)
+                                ),
+                                leadingIcon = {
+                                    Icon(
+                                        imageVector = Icons.Outlined.WbSunny,
+                                        contentDescription = null,
+                                        tint = mantraColor.copy(alpha = 0.6f),
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                },
+                                modifier = Modifier.fillMaxWidth().testTag("dialog_edit_morning_punas")
+                            )
+
+                            OutlinedTextField(
+                                value = afternoonPunasInput,
+                                onValueChange = { if (it.all { c -> c.isDigit() }) afternoonPunasInput = it },
+                                label = { Text("Madhyahnika") },
+                                placeholder = { Text("0") },
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                singleLine = true,
+                                shape = RoundedCornerShape(12.dp),
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedBorderColor = mantraColor,
+                                    focusedLabelColor = mantraColor,
+                                    cursorColor = mantraColor,
+                                    unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.25f)
+                                ),
+                                leadingIcon = {
+                                    Icon(
+                                        imageVector = Icons.Outlined.LightMode,
+                                        contentDescription = null,
+                                        tint = mantraColor.copy(alpha = 0.6f),
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                },
+                                modifier = Modifier.fillMaxWidth().testTag("dialog_edit_afternoon_punas")
+                            )
+
+                            OutlinedTextField(
+                                value = eveningPunasInput,
+                                onValueChange = { if (it.all { c -> c.isDigit() }) eveningPunasInput = it },
+                                label = { Text("Sayam") },
+                                placeholder = { Text("0") },
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                singleLine = true,
+                                shape = RoundedCornerShape(12.dp),
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedBorderColor = mantraColor,
+                                    focusedLabelColor = mantraColor,
+                                    cursorColor = mantraColor,
+                                    unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.25f)
+                                ),
+                                leadingIcon = {
+                                    Icon(
+                                        imageVector = Icons.Outlined.NightsStay,
+                                        contentDescription = null,
+                                        tint = mantraColor.copy(alpha = 0.6f),
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                },
+                                modifier = Modifier.fillMaxWidth().testTag("dialog_edit_evening_punas")
+                            )
+                        }
+                    }
+                } else {
+                    Column(
+                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            text = "Sandhya Counts",
+                            style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                            color = mantraColor
+                        )
+
+                        OutlinedTextField(
+                            value = morningInput,
+                            onValueChange = { if (it.all { c -> c.isDigit() || c == '-' }) morningInput = it },
+                            label = { Text("Morning (Pratah) Sandhya") },
+                            placeholder = { Text("0") },
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            singleLine = true,
+                            shape = RoundedCornerShape(12.dp),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                    focusedBorderColor = mantraColor,
+                                    focusedLabelColor = mantraColor,
+                                    cursorColor = mantraColor,
+                                    unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.25f)
+                            ),
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = Icons.Default.WbSunny,
+                                    contentDescription = null,
+                                    tint = mantraColor.copy(alpha = 0.8f),
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            },
+                            modifier = Modifier.fillMaxWidth().testTag("dialog_edit_morning")
+                        )
+
+                        OutlinedTextField(
+                            value = afternoonInput,
+                            onValueChange = { if (it.all { c -> c.isDigit() || c == '-' }) afternoonInput = it },
+                            label = { Text("Noon (Madhyahnika) Sandhya") },
+                            placeholder = { Text("0") },
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            singleLine = true,
+                            shape = RoundedCornerShape(12.dp),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                    focusedBorderColor = mantraColor,
+                                    focusedLabelColor = mantraColor,
+                                    cursorColor = mantraColor,
+                                    unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.25f)
+                            ),
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = Icons.Default.LightMode,
+                                    contentDescription = null,
+                                    tint = mantraColor.copy(alpha = 0.8f),
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            },
+                            modifier = Modifier.fillMaxWidth().testTag("dialog_edit_afternoon")
+                        )
+
+                        OutlinedTextField(
+                            value = eveningInput,
+                            onValueChange = { if (it.all { c -> c.isDigit() || c == '-' }) eveningInput = it },
+                            label = { Text("Evening (Sayam) Sandhya") },
+                            placeholder = { Text("0") },
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            singleLine = true,
+                            shape = RoundedCornerShape(12.dp),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                    focusedBorderColor = mantraColor,
+                                    focusedLabelColor = mantraColor,
+                                    cursorColor = mantraColor,
+                                    unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.25f)
+                            ),
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = Icons.Default.NightsStay,
+                                    contentDescription = null,
+                                    tint = mantraColor.copy(alpha = 0.8f),
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            },
+                            modifier = Modifier.fillMaxWidth().testTag("dialog_edit_evening")
+                        )
+                    }
+                }
             }
         },
         confirmButton = {
-            Button(
-                onClick = {
-                    val m = morningInput.toIntOrNull() ?: 0
-                    val a = afternoonInput.toIntOrNull() ?: 0
-                    val ev = eveningInput.toIntOrNull() ?: 0
-                    val mp = morningPunasInput.toIntOrNull() ?: 0
-                    val ap = afternoonPunasInput.toIntOrNull() ?: 0
-                    val ep = eveningPunasInput.toIntOrNull() ?: 0
-                    onSave(m, a, ev, mp, ap, ep)
-                },
-                colors = ButtonDefaults.buttonColors(containerColor = mantraColor)
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 8.dp, vertical = 4.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Text("Save")
+                Button(
+                    onClick = {
+                        val m = morningInput.toIntOrNull() ?: 0
+                        val a = afternoonInput.toIntOrNull() ?: 0
+                        val ev = eveningInput.toIntOrNull() ?: 0
+                        val mp = morningPunasInput.toIntOrNull() ?: 0
+                        val ap = afternoonPunasInput.toIntOrNull() ?: 0
+                        val ep = eveningPunasInput.toIntOrNull() ?: 0
+                        onSave(m, a, ev, mp, ap, ep)
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = mantraColor),
+                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(48.dp)
+                        .testTag("dialog_save_button")
+                ) {
+                    Text("Save Changes", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodyMedium)
+                }
+                TextButton(
+                    onClick = onDismiss,
+                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(44.dp)
+                        .testTag("dialog_dismiss_button")
+                ) {
+                    Text("Cancel", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
             }
         },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Cancel")
-            }
-        }
+        dismissButton = null
     )
 }
 
@@ -953,40 +2321,629 @@ fun CustomCountEditDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
+        shape = RoundedCornerShape(24.dp),
+        containerColor = MaterialTheme.colorScheme.surface,
+        tonalElevation = 6.dp,
         title = {
-            Text(
-                "Edit ${practice.name}: ${entry.date}",
-                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
-            )
+            val formattedTitleDate = remember(entry.date) {
+                try {
+                    val inputSdf = SimpleDateFormat("yyyy-MM-dd", Locale.US)
+                    val outputSdf = SimpleDateFormat("EEEE, d MMM yyyy", Locale.US)
+                    val d = inputSdf.parse(entry.date)
+                    if (d != null) outputSdf.format(d) else entry.date
+                } catch (e: Exception) {
+                    entry.date
+                }
+            }
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier.fillMaxWidth().padding(top = 12.dp)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(56.dp)
+                        .background(mantraColor.copy(alpha = 0.12f), CircleShape),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Edit,
+                        contentDescription = null,
+                        tint = mantraColor,
+                        modifier = Modifier.size(26.dp)
+                    )
+                }
+                Spacer(modifier = Modifier.height(12.dp))
+                Text(
+                    text = "Edit ${practice.name}",
+                    style = MaterialTheme.typography.titleLarge.copy(
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 0.25.sp
+                    ),
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 1
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = formattedTitleDate,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                )
+            }
         },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("Update total cumulative chants for this date.", style = MaterialTheme.typography.bodySmall)
-                Spacer(modifier = Modifier.height(4.dp))
+            Column(
+                verticalArrangement = Arrangement.spacedBy(16.dp),
+                modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
+            ) {
+                Text(
+                    text = "Update the cumulative chants count logged for this date.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
+                )
+                
                 OutlinedTextField(
                     value = countInput,
                     onValueChange = { if (it.all { c -> c.isDigit() }) countInput = it },
-                    label = { Text("Total Count") },
+                    label = { Text("Total Cumulative Count") },
+                    placeholder = { Text("0") },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     singleLine = true,
+                    shape = RoundedCornerShape(12.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = mantraColor,
+                        focusedLabelColor = mantraColor,
+                        cursorColor = mantraColor,
+                        unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.25f)
+                    ),
+                    leadingIcon = {
+                        Icon(
+                            imageVector = Icons.Default.AllInclusive,
+                            contentDescription = null,
+                            tint = mantraColor.copy(alpha = 0.8f),
+                            modifier = Modifier.size(20.dp)
+                        )
+                    },
                     modifier = Modifier.fillMaxWidth()
                 )
             }
         },
         confirmButton = {
-            Button(
-                onClick = {
-                    onSave(countInput.toIntOrNull() ?: 0)
-                },
-                colors = ButtonDefaults.buttonColors(containerColor = mantraColor)
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 8.dp, vertical = 4.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Text("Save")
+                Button(
+                    onClick = {
+                        onSave(countInput.toIntOrNull() ?: 0)
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = mantraColor),
+                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(48.dp)
+                ) {
+                    Text("Save Changes", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodyMedium)
+                }
+                TextButton(
+                    onClick = onDismiss,
+                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(44.dp)
+                ) {
+                    Text("Cancel", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
             }
         },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Cancel")
+        dismissButton = null
+    )
+}
+
+data class MonthAnalytics(
+    val monthStr: String,
+    val monthName: String,
+    val totalCount: Long,
+    val daysLogged: Int,
+    val averageCount: Double,
+    val maxCount: Int,
+    val minCount: Int,
+    val openValue: Double,
+    val closeValue: Double
+)
+
+@Composable
+fun MonthlyOverviewCard(
+    selectedMantraId: Long?,
+    allPractices: List<CustomPractice>,
+    entries: List<JapaEntry>,
+    allCustomEntries: List<CustomPracticeEntry>,
+    gayatriName: String,
+    gayatriColor: Color,
+    modifier: Modifier = Modifier
+) {
+    if (selectedMantraId == null) {
+        // Combined state: show an elegant, simple hint card
+        Card(
+            modifier = modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
+            ),
+            shape = RoundedCornerShape(12.dp)
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(12.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Analytics,
+                    contentDescription = "Analytics Info",
+                    tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f),
+                    modifier = Modifier.size(20.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = "Select a specific mantra card above to view dynamic monthly averages, insights, and performance.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
+                )
             }
         }
-    )
+        return
+    }
+
+    // A specific mantra is selected, compute monthly analytics!
+    val activeMantraName = remember(selectedMantraId, allPractices, gayatriName) {
+        if (selectedMantraId == GAYATRI_PRACTICE_ID) gayatriName else allPractices.find { it.id == selectedMantraId }?.name ?: "Mantra"
+    }
+
+    val activeColor = remember(selectedMantraId, allPractices, gayatriColor) {
+        if (selectedMantraId == GAYATRI_PRACTICE_ID) gayatriColor else getMantraColor(allPractices.find { it.id == selectedMantraId }?.themeColor ?: "teal")
+    }
+
+    val monthAnalyticsList = remember(selectedMantraId, entries, allCustomEntries) {
+        val dailyTotals = mutableListOf<Pair<String, Int>>()
+        if (selectedMantraId == GAYATRI_PRACTICE_ID) {
+            entries.forEach { entry ->
+                if (entry.dailyTotal > 0) {
+                    dailyTotals.add(entry.date to entry.dailyTotal)
+                }
+            }
+        } else {
+            allCustomEntries.forEach { entry ->
+                if (entry.practiceId == selectedMantraId && entry.dailyTotal > 0) {
+                    dailyTotals.add(entry.date to entry.dailyTotal)
+                }
+            }
+        }
+
+        if (dailyTotals.isEmpty()) return@remember emptyList<MonthAnalytics>()
+
+        val grouped = dailyTotals.groupBy { it.first.substring(0, 7) }
+        val inputFormat = SimpleDateFormat("yyyy-MM", Locale.getDefault())
+        val outputFormat = SimpleDateFormat("MMMM yyyy", Locale.getDefault())
+
+        grouped.map { (monthStr, items) ->
+            val monthDate = try { inputFormat.parse(monthStr) } catch (e: Exception) { null }
+            val monthName = if (monthDate != null) outputFormat.format(monthDate) else monthStr
+
+            val totals = items.map { it.second }
+            val totalCount = totals.sum().toLong()
+            val daysLogged = totals.size
+            val averageCount = if (daysLogged > 0) totalCount.toDouble() / daysLogged else 0.0
+            
+            val daysInMonth = if (monthDate != null) {
+                val cal = Calendar.getInstance()
+                cal.time = monthDate
+                cal.getActualMaximum(Calendar.DAY_OF_MONTH)
+            } else 30
+
+            MonthAnalytics(
+                monthStr = monthStr,
+                monthName = monthName,
+                totalCount = totalCount,
+                daysLogged = daysLogged,
+                averageCount = averageCount,
+                maxCount = 0,
+                minCount = 0,
+                openValue = daysInMonth.toDouble(), // Reuse openValue to hold daysInMonth for simple overview
+                closeValue = 0.0
+            )
+        }.sortedByDescending { it.monthStr }
+    }
+
+    if (monthAnalyticsList.isEmpty()) {
+        Card(
+            modifier = modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(
+                containerColor = activeColor.copy(alpha = 0.05f)
+            ),
+            shape = RoundedCornerShape(12.dp)
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(12.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Analytics,
+                    contentDescription = "No Data",
+                    tint = activeColor,
+                    modifier = Modifier.size(20.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = "No log data available for $activeMantraName yet. Start logging to view monthly analytics!",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                )
+            }
+        }
+        return
+    }
+
+    val latestMonth = monthAnalyticsList.first()
+    val daysInMonth = latestMonth.openValue.toInt()
+    val percentActive = if (daysInMonth > 0) (latestMonth.daysLogged.toFloat() / daysInMonth) else 0f
+
+    Column(modifier = modifier.fillMaxWidth()) {
+        Text(
+            text = "Monthly Overview",
+            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+            color = MaterialTheme.colorScheme.onBackground
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+            border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)),
+            shape = RoundedCornerShape(16.dp)
+        ) {
+            Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
+                Text(
+                    text = latestMonth.monthName,
+                    style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold, color = activeColor)
+                )
+                Spacer(modifier = Modifier.height(16.dp))
+                
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                    Column {
+                        Text(
+                            text = "Average Daily Japa",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                        )
+                        Text(
+                            text = String.format("%,d", latestMonth.averageCount.toInt()),
+                            style = MaterialTheme.typography.headlineMedium.copy(
+                                fontWeight = FontWeight.Bold,
+                                fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
+                            ),
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
+                    Column(horizontalAlignment = Alignment.End) {
+                        Text(
+                            text = "Total This Month",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                        )
+                        Text(
+                            text = String.format("%,d", latestMonth.totalCount),
+                            style = MaterialTheme.typography.titleLarge.copy(
+                                fontWeight = FontWeight.Bold,
+                                fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
+                            ),
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(24.dp))
+                
+                Text(
+                    text = "Practiced Days",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                )
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                    Text(
+                        text = "${latestMonth.daysLogged} / $daysInMonth",
+                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Spacer(modifier = Modifier.width(12.dp))
+                    LinearProgressIndicator(
+                        progress = { percentActive },
+                        modifier = Modifier.weight(1f).height(8.dp).clip(RoundedCornerShape(4.dp)),
+                        color = activeColor,
+                        trackColor = activeColor.copy(alpha = 0.15f),
+                    )
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Text(
+                        text = "${(percentActive * 100).toInt()}%",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                    )
+                }
+
+                // 12-Month Trend bar chart displayed directly on this card
+                Spacer(modifier = Modifier.height(24.dp))
+                Text(
+                    text = "12-Month Trend",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                )
+                Spacer(modifier = Modifier.height(12.dp))
+                val last12 = monthAnalyticsList.take(12).reversed()
+                HistoryBarTrendChart(last12, activeColor)
+            }
+        }
+    }
+}
+
+@Composable
+fun HistoryBarTrendChart(last12Months: List<MonthAnalytics>, activeColor: Color) {
+    if (last12Months.isEmpty()) return
+    val maxTotal = last12Months.maxOfOrNull { it.totalCount }?.toFloat() ?: 1f
+    val safeMax = if (maxTotal > 0f) maxTotal else 1f
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(145.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.Bottom
+    ) {
+        last12Months.forEach { month ->
+            val heightFraction = (month.totalCount.toFloat() / safeMax).coerceIn(0.05f, 1f)
+            
+            val displayMonth = remember(month.monthName) {
+                if (month.monthName.contains(" ")) {
+                    month.monthName.substringBefore(" ").take(3)
+                } else if (month.monthName.contains("-")) {
+                    val parts = month.monthName.split("-")
+                    if (parts.size == 2) {
+                        val m = parts[1].toIntOrNull() ?: 1
+                        val dfs = java.text.DateFormatSymbols.getInstance(Locale.US)
+                        dfs.shortMonths.getOrNull(m - 1) ?: month.monthName.take(3)
+                    } else {
+                        month.monthName.take(3)
+                    }
+                } else {
+                    month.monthName.take(3)
+                }
+            }
+
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Bottom,
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxHeight()
+            ) {
+                // Large/Clear compact value on top of bar
+                Text(
+                    text = formatCountCompact(month.totalCount.toInt()),
+                    style = MaterialTheme.typography.labelSmall.copy(
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        letterSpacing = (-0.2).sp
+                    ),
+                    color = activeColor,
+                    maxLines = 1
+                )
+                Spacer(modifier = Modifier.height(6.dp))
+                
+                // Rounded Sleek Bar with Back Track (Thicker design)
+                Box(
+                    modifier = Modifier
+                        .height(90.dp)
+                        .width(20.dp)
+                        .clip(RoundedCornerShape(topStart = 8.dp, topEnd = 8.dp, bottomStart = 4.dp, bottomEnd = 4.dp))
+                        .background(activeColor.copy(alpha = 0.08f)),
+                    contentAlignment = Alignment.BottomCenter
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .fillMaxHeight(heightFraction)
+                            .clip(RoundedCornerShape(topStart = 8.dp, topEnd = 8.dp, bottomStart = 4.dp, bottomEnd = 4.dp))
+                            .background(activeColor)
+                    )
+                }
+                Spacer(modifier = Modifier.height(8.dp))
+                
+                // Month Abbreviation
+                Text(
+                    text = displayMonth,
+                    style = MaterialTheme.typography.labelSmall.copy(
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold
+                    ),
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.75f),
+                    maxLines = 1
+                )
+            }
+        }
+    }
+}
+
+private fun formatCountCompact(count: Int): String {
+    return when {
+        count >= 1_000_000 -> {
+            val millions = count / 1_000_000f
+            if (millions % 1 == 0f) "${millions.toInt()}M" else String.format(Locale.US, "%.1fM", millions)
+        }
+        count >= 1000 -> {
+            val thousands = count / 1000f
+            if (thousands % 1 == 0f) "${thousands.toInt()}k" else String.format(Locale.US, "%.1fk", thousands)
+        }
+        else -> count.toString()
+    }
+}
+
+@Composable
+fun MonthlyCompactStatsRow(
+    monthName: String,
+    averageCount: Double,
+    totalCount: Long,
+    daysLogged: Int,
+    daysInMonth: Int,
+    accentColor: Color
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceColorAtElevation(1.dp)
+        ),
+        shape = RoundedCornerShape(16.dp),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            horizontalArrangement = Arrangement.SpaceEvenly,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // Month & Days
+            Column(
+                modifier = Modifier.weight(1.2f),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text(
+                    text = monthName.uppercase(Locale.US),
+                    style = MaterialTheme.typography.labelSmall.copy(
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 0.5.sp
+                    ),
+                    color = accentColor,
+                    maxLines = 1
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = "$daysLogged / $daysInMonth Days",
+                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+            }
+
+            // Safe robust custom vertical divider
+            Spacer(
+                modifier = Modifier
+                    .width(1.dp)
+                    .height(36.dp)
+                    .background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+            )
+
+            // Total Count
+            Column(
+                modifier = Modifier.weight(1.4f),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text(
+                    text = "TOTAL COUNT",
+                    style = MaterialTheme.typography.labelSmall.copy(
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 0.5.sp
+                    ),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                    maxLines = 1
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                AutoResizedText(
+                    text = String.format(Locale.US, "%,d", totalCount),
+                    modifier = Modifier.fillMaxWidth(),
+                    style = MaterialTheme.typography.titleMedium.copy(
+                        fontWeight = FontWeight.ExtraBold,
+                        fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
+                    ),
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 1,
+                    minFontSize = 10.sp,
+                    textAlign = TextAlign.Center
+                )
+            }
+
+            // Safe robust custom vertical divider
+            Spacer(
+                modifier = Modifier
+                    .width(1.dp)
+                    .height(36.dp)
+                    .background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+            )
+
+            // Average Count
+            Column(
+                modifier = Modifier.weight(1.4f),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text(
+                    text = "DAILY AVERAGE",
+                    style = MaterialTheme.typography.labelSmall.copy(
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 0.5.sp
+                    ),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                    maxLines = 1
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                AutoResizedText(
+                    text = String.format(Locale.US, "%,d", averageCount.toInt()),
+                    modifier = Modifier.fillMaxWidth(),
+                    style = MaterialTheme.typography.titleMedium.copy(
+                        fontWeight = FontWeight.ExtraBold,
+                        fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
+                    ),
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 1,
+                    minFontSize = 10.sp,
+                    textAlign = TextAlign.Center
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun MonthlyTrendSection(
+    monthAnalyticsList: List<MonthAnalytics>,
+    accentColor: Color
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceColorAtElevation(1.dp)
+        ),
+        shape = RoundedCornerShape(20.dp),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp)
+        ) {
+            Text(
+                text = "12-MONTH TREND",
+                style = MaterialTheme.typography.labelMedium.copy(
+                    fontWeight = FontWeight.ExtraBold,
+                    letterSpacing = 1.sp
+                ),
+                color = accentColor
+            )
+            Spacer(modifier = Modifier.height(16.dp))
+            val last12 = monthAnalyticsList.take(12).reversed()
+            HistoryBarTrendChart(last12, accentColor)
+        }
+    }
 }

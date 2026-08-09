@@ -24,13 +24,16 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.unit.TextUnit
 import com.example.data.JapaEntry
 import com.example.ui.JapaViewModel
 import com.example.api.SyncState
@@ -57,9 +60,7 @@ fun TodayScreen(
     val isPunascharanaEnabled by viewModel.isPunascharanaEnabled.collectAsState()
     val gayatriName by viewModel.gayatriName.collectAsState()
     val defaultPracticeId by viewModel.defaultPracticeId.collectAsState()
-    val stats by viewModel.getStatisticsFlow().collectAsState(
-        initial = JapaViewModel.Stats(0, 0, viewModel.prefs.getInitialLifetimeCount(), 0, 0)
-    )
+    val stats by viewModel.statistics.collectAsState()
 
     var showPunasModal by remember { mutableStateOf(false) }
 
@@ -80,6 +81,30 @@ fun TodayScreen(
     }
 
     // Progress determination
+    val currentPractice = remember(activePracticeId, allPractices) {
+        allPractices.find { it.id == activePracticeId }
+    }
+
+    val resolvedEntry = remember(activePracticeId, todayEntry, activeCustomEntry, todayDate) {
+        if (activePracticeId == com.example.ui.GAYATRI_PRACTICE_ID) {
+            todayEntry?.let { gEntry ->
+                com.example.data.CustomPracticeEntry(
+                    practiceId = com.example.ui.GAYATRI_PRACTICE_ID,
+                    date = todayDate,
+                    morningCount = gEntry.pratahSandhyaCount,
+                    afternoonCount = gEntry.madhyahnikaSandhyaCount,
+                    eveningCount = gEntry.sayamSandhyaCount,
+                    morningPunasCount = gEntry.pratahPunascharanaCount,
+                    afternoonPunasCount = gEntry.madhyahnikaPunascharanaCount,
+                    eveningPunasCount = gEntry.sayamPunascharanaCount,
+                    updatedAt = gEntry.updatedAt
+                )
+            }
+        } else {
+            activeCustomEntry
+        }
+    }
+
     val completedSandhyas = remember(todayEntry) {
         var count = 0
         todayEntry?.let { entry ->
@@ -209,11 +234,15 @@ fun TodayScreen(
                             } else null
                         )
 
-                        if (allPractices.isNotEmpty()) {
+                        val otherPractices = remember(allPractices) {
+                            allPractices.filter { it.id != com.example.ui.GAYATRI_PRACTICE_ID }
+                        }
+
+                        if (otherPractices.isNotEmpty()) {
                             Divider()
                         }
 
-                        allPractices.forEach { practice ->
+                        otherPractices.forEach { practice ->
                             DropdownMenuItem(
                                 text = { Text(practice.name, fontWeight = if (activePracticeId == practice.id) FontWeight.Bold else FontWeight.Normal) },
                                 onClick = {
@@ -322,16 +351,14 @@ fun TodayScreen(
             Spacer(modifier = Modifier.height(4.dp))
 
             // Subtle progress indicator: "X/3 Sandhyas completed"
-            val currentPracticeInfo = allPractices.find { it.id == activePracticeId }
-            if (currentPracticeInfo?.practiceType == "SANDHYA") {
-                val todayCustomEntry = viewModel.activeCustomEntry.collectAsState().value
+            if (currentPractice?.practiceType == "SANDHYA") {
                 var customCompletedSandhyas = 0
-                if (todayCustomEntry != null) {
-                    if (todayCustomEntry.morningCount > 0 || todayCustomEntry.morningCount == -1) customCompletedSandhyas++
-                    if (todayCustomEntry.afternoonCount > 0 || todayCustomEntry.afternoonCount == -1) customCompletedSandhyas++
-                    if (todayCustomEntry.eveningCount > 0 || todayCustomEntry.eveningCount == -1) customCompletedSandhyas++
+                resolvedEntry?.let { entry ->
+                    if (entry.morningCount > 0 || entry.morningCount == -1) customCompletedSandhyas++
+                    if (entry.afternoonCount > 0 || entry.afternoonCount == -1) customCompletedSandhyas++
+                    if (entry.eveningCount > 0 || entry.eveningCount == -1) customCompletedSandhyas++
                 }
-                val totalSandhyasRequired = listOf(currentPracticeInfo.isMorningEnabled, currentPracticeInfo.isMiddayEnabled, currentPracticeInfo.isEveningEnabled).count { it }
+                val totalSandhyasRequired = listOf(currentPractice.isMorningEnabled, currentPractice.isMiddayEnabled, currentPractice.isEveningEnabled).count { it }
 
                 Text(
                     text = "$customCompletedSandhyas/$totalSandhyasRequired Sandhyas completed",
@@ -407,25 +434,6 @@ fun TodayScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            val currentPractice = allPractices.find { it.id == activePracticeId }
-            val resolvedEntry = if (activePracticeId == com.example.ui.GAYATRI_PRACTICE_ID) {
-                todayEntry?.let { gEntry ->
-                    com.example.data.CustomPracticeEntry(
-                        practiceId = com.example.ui.GAYATRI_PRACTICE_ID,
-                        date = todayDate,
-                        morningCount = gEntry.pratahSandhyaCount,
-                        afternoonCount = gEntry.madhyahnikaSandhyaCount,
-                        eveningCount = gEntry.sayamSandhyaCount,
-                        morningPunasCount = gEntry.pratahPunascharanaCount,
-                        afternoonPunasCount = gEntry.madhyahnikaPunascharanaCount,
-                        eveningPunasCount = gEntry.sayamPunascharanaCount,
-                        updatedAt = gEntry.updatedAt
-                    )
-                }
-            } else {
-                activeCustomEntry
-            }
-
             SimplePracticeContent(
                 viewModel = viewModel,
                 practice = currentPractice,
@@ -488,15 +496,12 @@ fun SimplePracticeContent(
     val mantraColor = getMantraColor(themeColor)
 
     val isGlobalPunasEnabled by viewModel.isPunascharanaEnabled.collectAsState()
-    val isPunascharanaEnabledForPractice = practice.isPunascharanaEnabled && isGlobalPunasEnabled
-
     val isGayatri = practice.id == com.example.ui.GAYATRI_PRACTICE_ID
+    val isPunascharanaEnabledForPractice = if (isGayatri) isGlobalPunasEnabled else practice.isPunascharanaEnabled
 
     // Calculate lifetime count
-    val practiceTotals by viewModel.allPracticeTotals.collectAsState(initial = emptyMap())
-    val gayatriStats by viewModel.getStatisticsFlow().collectAsState(
-        initial = com.example.ui.JapaViewModel.Stats(0, 0, viewModel.prefs.getInitialLifetimeCount(), 0, 0)
-    )
+    val practiceTotals by viewModel.allPracticeTotals.collectAsState()
+    val gayatriStats by viewModel.statistics.collectAsState()
 
     val lifetimeTotal = remember(practice.id, practiceTotals, gayatriStats) {
         if (isGayatri) {
@@ -507,7 +512,7 @@ fun SimplePracticeContent(
         }
     }
 
-    val practicePunasTotals by viewModel.allPracticePunasTotals.collectAsState(initial = emptyMap())
+    val practicePunasTotals by viewModel.allPracticePunasTotals.collectAsState()
     val lifetimePunasTotal = remember(practice.id, practicePunasTotals, gayatriStats) {
         if (isGayatri) {
             gayatriStats.lifetimePunascharanaTotal
@@ -526,7 +531,10 @@ fun SimplePracticeContent(
         val afternoonPunas = entry?.afternoonPunasCount ?: 0
         val eveningPunas = entry?.eveningPunasCount ?: 0
 
-        val totalToday = morningCount + afternoonCount + eveningCount + morningPunas + afternoonPunas + eveningPunas
+        val totalToday = (if (morningCount > 0) morningCount else 0) +
+                         (if (afternoonCount > 0) afternoonCount else 0) +
+                         (if (eveningCount > 0) eveningCount else 0) +
+                         morningPunas + afternoonPunas + eveningPunas
 
         Column(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp),
@@ -1309,6 +1317,45 @@ fun GayatriSpecificContent(
 }
 
 @Composable
+fun AutoResizedTextToday(
+    text: String,
+    style: androidx.compose.ui.text.TextStyle,
+    modifier: Modifier = Modifier,
+    color: Color = Color.Unspecified,
+    maxLines: Int = 1,
+    minFontSize: TextUnit = 10.sp,
+    textAlign: TextAlign? = null
+) {
+    var resizedTextStyle by remember(text, style) { mutableStateOf(style) }
+    var shouldDraw by remember(text, style) { mutableStateOf(false) }
+
+    Text(
+        text = text,
+        color = color,
+        textAlign = textAlign,
+        modifier = modifier.drawWithContent {
+            if (shouldDraw) {
+                drawContent()
+            }
+        },
+        style = resizedTextStyle,
+        maxLines = maxLines,
+        softWrap = false,
+        overflow = TextOverflow.Clip,
+        onTextLayout = { result ->
+            if ((result.didOverflowWidth || result.didOverflowHeight) && resizedTextStyle.fontSize > minFontSize) {
+                val nextSize = (resizedTextStyle.fontSize.value * 0.88f).sp
+                resizedTextStyle = resizedTextStyle.copy(
+                    fontSize = if (nextSize < minFontSize) minFontSize else nextSize
+                )
+            } else {
+                shouldDraw = true
+            }
+        }
+    )
+}
+
+@Composable
 fun AnimatedCounterText(
     value: Int,
     style: androidx.compose.ui.text.TextStyle,
@@ -1323,10 +1370,12 @@ fun AnimatedCounterText(
         label = "CounterAnimation",
         modifier = modifier
     ) { targetValue ->
-        Text(
-            text = targetValue.toString(),
+        AutoResizedTextToday(
+            text = String.format(Locale.US, "%,d", targetValue),
             style = style,
-            color = color
+            color = color,
+            maxLines = 1,
+            minFontSize = 10.sp
         )
     }
 }
@@ -1346,10 +1395,12 @@ fun AnimatedCounterLongText(
         label = "CounterLongAnimation",
         modifier = modifier
     ) { targetValue ->
-        Text(
-            text = targetValue.toString(),
+        AutoResizedTextToday(
+            text = String.format(Locale.US, "%,d", targetValue),
             style = style,
-            color = color
+            color = color,
+            maxLines = 1,
+            minFontSize = 10.sp
         )
     }
 }
@@ -2084,7 +2135,7 @@ fun SessionLoggingBlock(
     date: String
 ) {
     var sessionsExpanded by remember { mutableStateOf(false) }
-    val sessions by viewModel.todaySessions.collectAsState(initial = emptyList())
+    val sessions by viewModel.todaySessions.collectAsState()
 
     Card(
         modifier = Modifier
@@ -2226,6 +2277,7 @@ fun AddMantraTemplateDialog(
     
     var isReminderEnabled by remember { mutableStateOf(false) }
     var reminderTime by remember { mutableStateOf("06:30 AM") }
+    var isPunascharanaEnabledForMantra by remember { mutableStateOf(true) }
 
     val colorsList = listOf("Indigo", "Royal", "Teal", "Saffron", "Crimson", "Emerald", "Amber", "Slate", "Violet")
 
@@ -2460,6 +2512,20 @@ fun AddMantraTemplateDialog(
                     Spacer(modifier = Modifier.height(16.dp))
 
                     Row(
+                        modifier = Modifier.fillMaxWidth().clickable { isPunascharanaEnabledForMantra = !isPunascharanaEnabledForMantra },
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("Enable Punascharana", style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold))
+                            Text("Track secondary/auxiliary counts for this practice", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f))
+                        }
+                        Switch(checked = isPunascharanaEnabledForMantra, onCheckedChange = { isPunascharanaEnabledForMantra = it })
+                    }
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    Row(
                         modifier = Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.SpaceBetween
@@ -2487,18 +2553,29 @@ fun AddMantraTemplateDialog(
                 Button(
                     onClick = {
                         if (mantraName.isNotBlank()) {
-                            val newMantra = com.example.data.CustomPractice(
-                                name = mantraName,
-                                practiceType = practiceType,
-                                defaultTarget = defaultTarget.toIntOrNull() ?: 108,
-                                quickAddValues = quickAddValues,
-                                initialLifetimeCount = initialLifetimeCount.toLongOrNull() ?: 0L,
-                                themeColor = selectedColor,
-                                isReminderEnabled = isReminderEnabled,
-                                reminderTime = if (isReminderEnabled) reminderTime else ""
-                            )
-                            viewModel.addNewPractice(newMantra) { newId ->
-                                onCreated(newId)
+                            if (mantraName.contains("Gayatri", ignoreCase = true)) {
+                                viewModel.setGayatriConfig(
+                                    name = mantraName,
+                                    color = selectedColor,
+                                    isDefault = false,
+                                    initialCount = initialLifetimeCount.toLongOrNull() ?: 0L
+                                )
+                                onCreated(com.example.ui.GAYATRI_PRACTICE_ID)
+                            } else {
+                                val newMantra = com.example.data.CustomPractice(
+                                    name = mantraName,
+                                    practiceType = practiceType,
+                                    defaultTarget = defaultTarget.toIntOrNull() ?: 108,
+                                    quickAddValues = quickAddValues,
+                                    initialLifetimeCount = initialLifetimeCount.toLongOrNull() ?: 0L,
+                                    themeColor = selectedColor,
+                                    isReminderEnabled = isReminderEnabled,
+                                    isPunascharanaEnabled = isPunascharanaEnabledForMantra,
+                                    reminderTime = if (isReminderEnabled) reminderTime else ""
+                                )
+                                viewModel.addNewPractice(newMantra) { newId ->
+                                    onCreated(newId)
+                                }
                             }
                         }
                     },
@@ -2528,11 +2605,13 @@ fun EditMantraDialog(
     var defaultTarget by remember { mutableStateOf(practice.defaultTarget.toString()) }
     var quickAddValues by remember { mutableStateOf(practice.quickAddValues) }
     var initialLifetimeCount by remember { mutableStateOf(practice.initialLifetimeCount.toString()) }
+    var showPriorCountWarning by remember { mutableStateOf(false) }
     var selectedColor by remember { mutableStateOf(practice.themeColor) }
     var isDefault by remember { mutableStateOf(isDefaultMantra) }
     
     var isReminderEnabled by remember { mutableStateOf(practice.isReminderEnabled) }
     var reminderTime by remember { mutableStateOf(practice.reminderTime.ifEmpty { "06:30 AM" }) }
+    var isPunascharanaEnabledForMantra by remember { mutableStateOf(practice.isPunascharanaEnabled) }
 
     val colorsList = listOf("Indigo", "Royal", "Teal", "Saffron", "Crimson", "Emerald", "Amber", "Slate", "Violet")
 
@@ -2678,6 +2757,20 @@ fun EditMantraDialog(
                 )
 
                 Spacer(modifier = Modifier.height(16.dp))
+                
+                Row(
+                    modifier = Modifier.fillMaxWidth().clickable { isPunascharanaEnabledForMantra = !isPunascharanaEnabledForMantra },
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("Enable Punascharana", style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold))
+                        Text("Track secondary/auxiliary counts for this practice", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f))
+                    }
+                    Switch(checked = isPunascharanaEnabledForMantra, onCheckedChange = { isPunascharanaEnabledForMantra = it })
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
 
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -2738,17 +2831,23 @@ fun EditMantraDialog(
             Button(
                 onClick = {
                     if (mantraName.isNotBlank()) {
-                        val updated = practice.copy(
-                            name = mantraName,
-                            practiceType = practiceType,
-                            defaultTarget = defaultTarget.toIntOrNull() ?: 108,
-                            quickAddValues = quickAddValues,
-                            initialLifetimeCount = initialLifetimeCount.toLongOrNull() ?: 0L,
-                            themeColor = selectedColor,
-                            isReminderEnabled = isReminderEnabled,
-                            reminderTime = if (isReminderEnabled) reminderTime else ""
-                        )
-                        onSave(updated, isDefault)
+                        val parsedCount = initialLifetimeCount.toLongOrNull() ?: 0L
+                        if (parsedCount != practice.initialLifetimeCount) {
+                            showPriorCountWarning = true
+                        } else {
+                            val updated = practice.copy(
+                                name = mantraName,
+                                practiceType = practiceType,
+                                defaultTarget = defaultTarget.toIntOrNull() ?: 108,
+                                quickAddValues = quickAddValues,
+                                initialLifetimeCount = parsedCount,
+                                themeColor = selectedColor,
+                                isReminderEnabled = isReminderEnabled,
+                                isPunascharanaEnabled = isPunascharanaEnabledForMantra,
+                                reminderTime = if (isReminderEnabled) reminderTime else ""
+                            )
+                            onSave(updated, isDefault)
+                        }
                     }
                 },
                 modifier = Modifier.testTag("save_custom_practice_button"),
@@ -2762,6 +2861,41 @@ fun EditMantraDialog(
             TextButton(onClick = onDismiss) { Text("Cancel") }
         }
     )
+
+    if (showPriorCountWarning) {
+        AlertDialog(
+            onDismissRequest = { showPriorCountWarning = false },
+            title = { Text("Change Prior Count?") },
+            text = { Text("You are about to explicitly change the prior accumulated count to ${initialLifetimeCount}. This will override the count across your synced devices to match this new value. Are you sure you want to proceed?") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        val parsedCount = initialLifetimeCount.toLongOrNull() ?: 0L
+                        val updated = practice.copy(
+                            name = mantraName,
+                            practiceType = practiceType,
+                            defaultTarget = defaultTarget.toIntOrNull() ?: 108,
+                            quickAddValues = quickAddValues,
+                            initialLifetimeCount = parsedCount,
+                            themeColor = selectedColor,
+                            isReminderEnabled = isReminderEnabled,
+                            isPunascharanaEnabled = isPunascharanaEnabledForMantra,
+                            reminderTime = if (isReminderEnabled) reminderTime else ""
+                        )
+                        onSave(updated, isDefault)
+                        showPriorCountWarning = false
+                    }
+                ) {
+                    Text("Save Changes")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showPriorCountWarning = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
 }
 
 @Composable

@@ -48,6 +48,7 @@ fun SettingsScreen(
     val themeMode by viewModel.themeMode.collectAsState()
     val initialLifetimeCount by viewModel.initialLifetimeCount.collectAsState()
     val isPunascharanaEnabled by viewModel.isPunascharanaEnabled.collectAsState()
+    val activePractices by viewModel.activeCustomPractices.collectAsState()
     val userProfile by viewModel.userProfile.collectAsState()
     val syncMessage by viewModel.syncMessage.collectAsState()
     val authError by viewModel.authError.collectAsState()
@@ -84,6 +85,7 @@ fun SettingsScreen(
 
     var editingLifetimeCount by remember { mutableStateOf(false) }
     var tempLifetimeInput by remember(initialLifetimeCount) { mutableStateOf(initialLifetimeCount.toString()) }
+    var showPriorCountWarning by remember { mutableStateOf(false) }
 
     var morningEnabled by remember { mutableStateOf(viewModel.prefs.getMorningReminderEnabled()) }
     var morningTime by remember { mutableStateOf(viewModel.prefs.getMorningReminderTime()) }
@@ -95,6 +97,31 @@ fun SettingsScreen(
     var eveningTime by remember { mutableStateOf(viewModel.prefs.getEveningReminderTime()) }
 
     var reminderIntensity by remember { mutableStateOf(viewModel.prefs.getReminderIntensity()) }
+
+    if (showPriorCountWarning) {
+        AlertDialog(
+            onDismissRequest = { showPriorCountWarning = false },
+            title = { Text("Change Prior Count?") },
+            text = { Text("You are about to explicitly change your prior accumulated count to ${tempLifetimeInput}. This will override the count across your synced devices to match this new value. Are you sure you want to proceed?") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        val parsed = tempLifetimeInput.toLongOrNull() ?: 0L
+                        viewModel.updateInitialLifetimeCount(parsed)
+                        editingLifetimeCount = false
+                        showPriorCountWarning = false
+                    }
+                ) {
+                    Text("Save Changes")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showPriorCountWarning = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
 
     Column(
         modifier = modifier
@@ -178,7 +205,9 @@ fun SettingsScreen(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Column {
+                        Column(
+                            modifier = Modifier.weight(1f).padding(end = 8.dp)
+                        ) {
                             Text(
                                 "Last Sync Status",
                                 style = MaterialTheme.typography.labelSmall,
@@ -188,13 +217,17 @@ fun SettingsScreen(
                                 text = viewModel.prefs.getLastSync(),
                                 style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium),
                                 color = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.testTag("sync_last_status")
+                                modifier = Modifier.testTag("sync_last_status"),
+                                maxLines = 1,
+                                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                             )
                             if (syncMessage.isNotEmpty()) {
                                 Text(
                                     text = syncMessage,
                                     style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f)
+                                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f),
+                                    maxLines = 2,
+                                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                                 )
                             }
                         }
@@ -202,11 +235,20 @@ fun SettingsScreen(
                         Button(
                             onClick = { viewModel.triggerManualSync() },
                             shape = RoundedCornerShape(8.dp),
-                            modifier = Modifier.testTag("sync_now_button")
+                            modifier = Modifier
+                                .testTag("sync_now_button")
+                                .width(130.dp)
+                                .height(40.dp),
+                            contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp)
                         ) {
                             Icon(Icons.Default.Sync, contentDescription = "Manual sync", modifier = Modifier.size(16.dp))
                             Spacer(modifier = Modifier.width(4.dp))
-                            Text("Sync Now", fontSize = 12.sp)
+                            Text(
+                                text = "Sync Now",
+                                fontSize = 12.sp,
+                                maxLines = 1,
+                                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                            )
                         }
                     }
                 } else {
@@ -258,32 +300,47 @@ fun SettingsScreen(
             elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
         ) {
             Column {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = "Punascharana Japa",
+                    modifier = Modifier.padding(16.dp, 16.dp, 16.dp, 4.dp),
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.primary
+                )
+                Text(
+                    text = "Enable auxiliary Punascharana counts per practice:",
+                    modifier = Modifier.padding(16.dp, 0.dp, 16.dp, 8.dp),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                )
+
+                activePractices.forEach { practice ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 4.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
                         Text(
-                            text = "Enable Punascharana Japa",
+                            text = practice.name,
                             style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Medium),
                             color = MaterialTheme.colorScheme.onSurface
                         )
-                        Text(
-                            text = "Include auxiliary Punascharana counts globally.",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                        Switch(
+                            checked = if (practice.id == com.example.ui.GAYATRI_PRACTICE_ID) isPunascharanaEnabled else practice.isPunascharanaEnabled,
+                            onCheckedChange = { isEnabled ->
+                                if (practice.id == com.example.ui.GAYATRI_PRACTICE_ID) {
+                                    viewModel.setPunascharanaEnabled(isEnabled)
+                                } else {
+                                    viewModel.updatePractice(practice.copy(isPunascharanaEnabled = isEnabled))
+                                }
+                            },
+                            modifier = Modifier.testTag("punascharana_toggle_${practice.id}")
                         )
                     }
-                    Switch(
-                        checked = isPunascharanaEnabled,
-                        onCheckedChange = { viewModel.setPunascharanaEnabled(it) },
-                        modifier = Modifier.testTag("punascharana_toggle_switch")
-                    )
                 }
                 
+                Spacer(modifier = Modifier.height(8.dp))
                 Divider(color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.05f))
                 
                 var showManageDialog by remember { mutableStateOf(false) }
@@ -466,8 +523,11 @@ fun SettingsScreen(
                         Button(
                             onClick = {
                                 val parsed = tempLifetimeInput.toLongOrNull() ?: 0L
-                                viewModel.updateInitialLifetimeCount(parsed)
-                                editingLifetimeCount = false
+                                if (parsed != initialLifetimeCount) {
+                                    showPriorCountWarning = true
+                                } else {
+                                    editingLifetimeCount = false
+                                }
                             },
                             modifier = Modifier.testTag("settings_lifetime_save")
                         ) {
@@ -600,8 +660,18 @@ fun SettingsScreen(
                                 reminderIntensity = mode
                                 viewModel.prefs.setReminderIntensity(mode)
                             },
-                            label = { Text(name) },
-                            modifier = Modifier.testTag("intensity_chip_$mode")
+                            label = { 
+                                Text(
+                                    text = name,
+                                    maxLines = 1,
+                                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                                    style = MaterialTheme.typography.bodyMedium
+                                )
+                            },
+                            modifier = Modifier
+                                .weight(1f)
+                                .padding(horizontal = 4.dp)
+                                .testTag("intensity_chip_$mode")
                         )
                     }
                 }
