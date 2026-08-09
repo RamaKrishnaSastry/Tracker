@@ -457,53 +457,97 @@ fun SettingsScreen(
             elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
         ) {
             Column(modifier = Modifier.padding(16.dp)) {
-                Text(
-                    text = "Configure your weekly target (Sankalpa). Progress is shown on the Today tab.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
-                )
-                Spacer(modifier = Modifier.height(12.dp))
-
+                val isTargetEnabled = weeklySankalpaTarget > 0
                 var editingTarget by remember { mutableStateOf(false) }
-                var targetInput by remember(weeklySankalpaTarget) { mutableStateOf(weeklySankalpaTarget.toString()) }
+                var targetInput by remember(weeklySankalpaTarget) { 
+                    mutableStateOf(if (weeklySankalpaTarget > 0) weeklySankalpaTarget.toString() else "1008") 
+                }
+                var lastTarget by remember { mutableStateOf(if (weeklySankalpaTarget > 0) weeklySankalpaTarget else 1008) }
 
-                if (editingTarget) {
-                    OutlinedTextField(
-                        value = targetInput,
-                        onValueChange = { if (it.all { char -> char.isDigit() }) targetInput = it },
-                        label = { Text("Weekly Goal Target (e.g. 1008)") },
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth().testTag("weekly_sankalpa_input")
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                        TextButton(onClick = { editingTarget = false }) { Text("Cancel") }
-                        Button(
-                            onClick = {
-                                val parsed = targetInput.toIntOrNull() ?: 1008
-                                viewModel.setWeeklySankalpaTarget(parsed)
-                                editingTarget = false
-                            },
-                            modifier = Modifier.testTag("save_weekly_sankalpa_button")
-                        ) { Text("Save Target") }
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Enable Weekly Target",
+                            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Text(
+                            text = "Track weekly goal (Sankalpa) on Today tab",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                        )
                     }
-                } else {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Column {
-                            Text("Current Target", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f))
-                            Text(
-                                text = String.format(Locale.US, "%,d", weeklySankalpaTarget),
-                                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold, fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace),
-                                color = MaterialTheme.colorScheme.primary
-                            )
+                    Switch(
+                        checked = isTargetEnabled,
+                        onCheckedChange = { enabled ->
+                            if (enabled) {
+                                val targetToSet = if (lastTarget > 0) lastTarget else 1008
+                                targetInput = targetToSet.toString()
+                                viewModel.setWeeklySankalpaTarget(targetToSet)
+                                editingTarget = true
+                            } else {
+                                if (weeklySankalpaTarget > 0) {
+                                    lastTarget = weeklySankalpaTarget
+                                }
+                                viewModel.setWeeklySankalpaTarget(0)
+                                editingTarget = false
+                            }
+                        },
+                        modifier = Modifier.testTag("weekly_sankalpa_toggle")
+                    )
+                }
+
+                if (isTargetEnabled) {
+                    Spacer(modifier = Modifier.height(12.dp))
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    if (editingTarget) {
+                        OutlinedTextField(
+                            value = targetInput,
+                            onValueChange = { if (it.all { char -> char.isDigit() }) targetInput = it },
+                            label = { Text("Weekly Goal Target (e.g. 1008)") },
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth().testTag("weekly_sankalpa_input")
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                            TextButton(onClick = { editingTarget = false }) { Text("Cancel") }
+                            Button(
+                                onClick = {
+                                    val parsed = targetInput.toIntOrNull()?.coerceAtLeast(1) ?: 1008
+                                    lastTarget = parsed
+                                    viewModel.setWeeklySankalpaTarget(parsed)
+                                    editingTarget = false
+                                },
+                                modifier = Modifier.testTag("save_weekly_sankalpa_button")
+                            ) { Text("Save Target") }
                         }
-                        IconButton(onClick = { editingTarget = true }) {
-                            Icon(Icons.Default.Edit, contentDescription = "Edit Target")
+                    } else {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column {
+                                Text("Current Target", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f))
+                                Text(
+                                    text = String.format(Locale.US, "%,d", weeklySankalpaTarget),
+                                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold, fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace),
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                            }
+                            IconButton(onClick = { 
+                                targetInput = weeklySankalpaTarget.toString()
+                                editingTarget = true 
+                            }) {
+                                Icon(Icons.Default.Edit, contentDescription = "Edit Target")
+                            }
                         }
                     }
                 }
