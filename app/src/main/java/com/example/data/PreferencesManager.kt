@@ -64,11 +64,22 @@ class PreferencesManager(context: Context) {
     }
 
     fun getInitialLifetimeCount(): Long = prefs.getLong("initial_lifetime_count", 0L)
-    fun setInitialLifetimeCount(count: Long) {
-        prefs.edit().putLong("initial_lifetime_count", count).apply()
-        updateSettingsTimestamp()
-        updateLifetimeCountTimestamp()
+    fun setInitialLifetimeCount(count: Long, updateTimestamp: Boolean = true) {
+        val editor = prefs.edit().putLong("initial_lifetime_count", count)
+        if (updateTimestamp) {
+            val now = java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", java.util.Locale.US).apply {
+                timeZone = java.util.TimeZone.getTimeZone("UTC")
+            }.format(java.util.Date())
+            editor.putString("initial_lifetime_count_updated_at", now)
+            editor.putString("settings_updated_at", now)
+        }
+        editor.apply()
         _initialLifetimeCount.value = count
+    }
+
+    fun getSavedOnboardingStep(): Int = prefs.getInt("saved_onboarding_step", 1)
+    fun setSavedOnboardingStep(step: Int) {
+        prefs.edit().putInt("saved_onboarding_step", step).apply()
     }
 
     fun getInitialLifetimeCountUpdatedAt(): String = prefs.getString("initial_lifetime_count_updated_at", "2020-01-01T00:00:00Z") ?: "2020-01-01T00:00:00Z"

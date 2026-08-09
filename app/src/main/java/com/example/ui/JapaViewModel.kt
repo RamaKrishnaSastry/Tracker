@@ -148,7 +148,7 @@ class JapaViewModel(application: Application) : AndroidViewModel(application) {
         }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    private val _onboardingStep = MutableStateFlow(if (prefs.isOnboarded()) 4 else 1)
+    private val _onboardingStep = MutableStateFlow(if (prefs.isOnboarded()) 4 else prefs.getSavedOnboardingStep())
     val onboardingStep: StateFlow<Int> = _onboardingStep.asStateFlow()
 
     private val _searchQuery = MutableStateFlow("")
@@ -352,6 +352,7 @@ class JapaViewModel(application: Application) : AndroidViewModel(application) {
             customPracticeDao.deleteSessionsForPractice(practice.id)
             customPracticeDao.deletePractice(practice)
             prefs.updateSettingsTimestamp()
+            reminderManager.scheduleAlarms()
             if (_activePracticeId.value == practice.id) {
                 _activePracticeId.value = GAYATRI_PRACTICE_ID
                 prefs.setActivePracticeId(GAYATRI_PRACTICE_ID)
@@ -379,8 +380,10 @@ class JapaViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
-    val todaySessions: StateFlow<List<JapaSession>> = activePracticeId.flatMapLatest { pid ->
-        customPracticeDao.getSessionsForPracticeAndDateFlow(pid, getTodayDateString())
+    val todaySessions: StateFlow<List<JapaSession>> = combine(activePracticeId, todayDate) { pid, date ->
+        pid to date
+    }.flatMapLatest { (pid, date) ->
+        customPracticeDao.getSessionsForPracticeAndDateFlow(pid, date)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     fun logJapaSession(practiceId: Long, count: Int, typeDetail: String = "Session") {
@@ -663,6 +666,7 @@ class JapaViewModel(application: Application) : AndroidViewModel(application) {
 
     fun setOnboardingStep(step: Int) {
         _onboardingStep.value = step
+        prefs.setSavedOnboardingStep(step)
     }
 
     fun updateThemeMode(mode: String) {

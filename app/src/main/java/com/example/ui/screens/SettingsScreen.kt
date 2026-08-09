@@ -158,6 +158,26 @@ fun SettingsScreen(
     var tempLifetimeInput by remember(initialLifetimeCount) { mutableStateOf(initialLifetimeCount.toString()) }
     var showPriorCountWarning by remember { mutableStateOf(false) }
 
+    val notifPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        if (!isGranted) {
+            android.widget.Toast.makeText(context, "Notification permission is needed for Sandhya reminders.", android.widget.Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    fun checkAndRequestNotifPermission() {
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+            if (androidx.core.content.ContextCompat.checkSelfPermission(
+                    context,
+                    android.Manifest.permission.POST_NOTIFICATIONS
+                ) != android.content.pm.PackageManager.PERMISSION_GRANTED
+            ) {
+                notifPermissionLauncher.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+            }
+        }
+    }
+
     var morningEnabled by remember { mutableStateOf(viewModel.prefs.getMorningReminderEnabled()) }
     var morningTime by remember { mutableStateOf(viewModel.prefs.getMorningReminderTime()) }
 
@@ -801,6 +821,7 @@ fun SettingsScreen(
                     time = morningTime,
                     onEnabledChange = {
                         morningEnabled = it
+                        if (it) checkAndRequestNotifPermission()
                         viewModel.setMorningReminder(it, morningTime)
                     },
                     onTimeClick = { showTimePickerDialogFor = "morning" },
@@ -819,6 +840,7 @@ fun SettingsScreen(
                     time = afternoonTime,
                     onEnabledChange = {
                         afternoonEnabled = it
+                        if (it) checkAndRequestNotifPermission()
                         viewModel.setAfternoonReminder(it, afternoonTime)
                     },
                     onTimeClick = { showTimePickerDialogFor = "afternoon" },
@@ -837,6 +859,7 @@ fun SettingsScreen(
                     time = eveningTime,
                     onEnabledChange = {
                         eveningEnabled = it
+                        if (it) checkAndRequestNotifPermission()
                         viewModel.setEveningReminder(it, eveningTime)
                     },
                     onTimeClick = { showTimePickerDialogFor = "evening" },

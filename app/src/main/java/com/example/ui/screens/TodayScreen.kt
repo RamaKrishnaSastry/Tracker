@@ -35,6 +35,12 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.unit.TextUnit
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.ContextCompat
+import android.content.pm.PackageManager
+import android.os.Build
+import android.Manifest
 import com.example.data.JapaEntry
 import com.example.ui.JapaViewModel
 import com.example.api.SyncState
@@ -2351,6 +2357,15 @@ fun AddMantraTemplateDialog(
     var reminderTime by remember { mutableStateOf("06:30 AM") }
     var isPunascharanaEnabledForMantra by remember { mutableStateOf(true) }
 
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val notifLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        if (!isGranted) {
+            android.widget.Toast.makeText(context, "Notification permission is needed for reminders.", android.widget.Toast.LENGTH_SHORT).show()
+        }
+    }
+
     val colorsList = listOf("Indigo", "Royal", "Teal", "Saffron", "Crimson", "Emerald", "Amber", "Slate", "Violet")
 
     if (stage == "SELECT_TEMPLATE") {
@@ -2606,7 +2621,17 @@ fun AddMantraTemplateDialog(
                             Text("Setup Daily Reminder", style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold))
                             Text("Receive regular notification reminder", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f))
                         }
-                        Switch(checked = isReminderEnabled, onCheckedChange = { isReminderEnabled = it })
+                        Switch(
+                            checked = isReminderEnabled,
+                            onCheckedChange = { enabled ->
+                                isReminderEnabled = enabled
+                                if (enabled && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                                    if (ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+                                        notifLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                                    }
+                                }
+                            }
+                        )
                     }
 
                     if (isReminderEnabled) {
@@ -2684,6 +2709,15 @@ fun EditMantraDialog(
     var isReminderEnabled by remember { mutableStateOf(practice.isReminderEnabled) }
     var reminderTime by remember { mutableStateOf(practice.reminderTime.ifEmpty { "06:30 AM" }) }
     var isPunascharanaEnabledForMantra by remember { mutableStateOf(practice.isPunascharanaEnabled) }
+
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val notifLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        if (!isGranted) {
+            android.widget.Toast.makeText(context, "Notification permission is needed for reminders.", android.widget.Toast.LENGTH_SHORT).show()
+        }
+    }
 
     val colorsList = listOf("Indigo", "Royal", "Teal", "Saffron", "Crimson", "Emerald", "Amber", "Slate", "Violet")
 
@@ -2853,7 +2887,17 @@ fun EditMantraDialog(
                         Text("Daily Reminder Alert", style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold))
                         Text("Send regular notification reminder", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f))
                     }
-                    Switch(checked = isReminderEnabled, onCheckedChange = { isReminderEnabled = it })
+                    Switch(
+                        checked = isReminderEnabled,
+                        onCheckedChange = { enabled ->
+                            isReminderEnabled = enabled
+                            if (enabled && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                                if (ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+                                    notifLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                                }
+                            }
+                        }
+                    )
                 }
 
                 if (isReminderEnabled) {

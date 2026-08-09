@@ -16,7 +16,7 @@ class ReminderManager(private val context: Context) {
     private val prefs = PreferencesManager(context)
     private val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
 
-    fun scheduleAlarms() {
+    suspend fun scheduleAlarmsSuspend() {
         if (prefs.getMorningReminderEnabled()) {
             scheduleAlarm("morning", prefs.getMorningReminderTime(), 1001)
         } else {
@@ -36,21 +36,25 @@ class ReminderManager(private val context: Context) {
         }
 
         // Schedule Custom Practice Alarms
-        kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
-            try {
-                val db = com.example.data.AppDatabase.getDatabase(context)
-                val practices = db.customPracticeDao().getAllPractices()
-                for (practice in practices) {
-                    val requestCode = (2000 + practice.id).toInt()
-                    if (practice.isReminderEnabled && practice.reminderTime.isNotEmpty() && !practice.isArchived) {
-                        scheduleAlarm("custom_${practice.id}", practice.reminderTime, requestCode)
-                    } else {
-                        cancelAlarm(requestCode)
-                    }
+        try {
+            val db = com.example.data.AppDatabase.getDatabase(context)
+            val practices = db.customPracticeDao().getAllPractices()
+            for (practice in practices) {
+                val requestCode = (2000 + practice.id).toInt()
+                if (practice.isReminderEnabled && practice.reminderTime.isNotEmpty() && !practice.isArchived) {
+                    scheduleAlarm("custom_${practice.id}", practice.reminderTime, requestCode)
+                } else {
+                    cancelAlarm(requestCode)
                 }
-            } catch (e: Exception) {
-                Log.e(TAG, "Error scheduling custom practice alarms: ${e.message}")
             }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error scheduling custom practice alarms: ${e.message}")
+        }
+    }
+
+    fun scheduleAlarms() {
+        CoroutineScope(Dispatchers.IO).launch {
+            scheduleAlarmsSuspend()
         }
     }
 
@@ -58,9 +62,29 @@ class ReminderManager(private val context: Context) {
         try {
             cancelAlarm(requestCode) // Clear any duplicate first
 
-            val parts = timeStr.split(":")
-            val hour = parts.getOrNull(0)?.toIntOrNull() ?: return
-            val minute = parts.getOrNull(1)?.toIntOrNull() ?: return
+            var hour: Int? = null
+            var minute: Int? = null
+
+            val cleanStr = timeStr.trim().uppercase(Locale.US)
+            val isPm = cleanStr.contains("PM")
+            val isAm = cleanStr.contains("AM")
+            val digitsStr = cleanStr.replace("AM", "").replace("PM", "").trim()
+            val parts = digitsStr.split(":")
+            if (parts.size >= 2) {
+                var h = parts[0].trim().toIntOrNull()
+                val m = parts[1].trim().toIntOrNull()
+                if (h != null && m != null) {
+                    if (isPm && h < 12) h += 12
+                    if (isAm && h == 12) h = 0
+                    hour = h
+                    minute = m
+                }
+            }
+
+            if (hour == null || minute == null) {
+                Log.e(TAG, "Failed to parse time string: '$timeStr' for $type")
+                return
+            }
 
             val calendar = Calendar.getInstance().apply {
                 set(Calendar.HOUR_OF_DAY, hour)

@@ -51,16 +51,8 @@ class JapaRepository(
             .build()
         cm.registerNetworkCallback(networkRequest, object : ConnectivityManager.NetworkCallback() {
             override fun onAvailable(network: android.net.Network) {
-                if (_syncState.value == SyncState.SYNC_PENDING) {
+                if (authManager.userProfile.value != null) {
                     syncWithCloud(isLocalUpdate = true)
-                } else if (_syncState.value == SyncState.OFFLINE) {
-                    scope.launch {
-                        if (authManager.userProfile.value != null) {
-                            _syncState.value = SyncState.SYNCED
-                        } else {
-                            _syncState.value = SyncState.DISCONNECTED
-                        }
-                    }
                 }
             }
             override fun onLost(network: android.net.Network) {
@@ -149,7 +141,7 @@ class JapaRepository(
             val cloudPayload = syncService.fetchCloudData(token)
             if (cloudPayload != null) {
                 // If the file exists, we consider this user "already saved previously".
-                prefs.setInitialLifetimeCount(cloudPayload.initialLifetimeCount)
+                prefs.setInitialLifetimeCount(cloudPayload.initialLifetimeCount, updateTimestamp = false)
                 cloudPayload.settings.initialLifetimeCountUpdatedAt?.let { prefs.setInitialLifetimeCountUpdatedAt(it) }
                 prefs.setThemeMode(cloudPayload.settings.themeMode)
                 cloudPayload.settings.isPunascharanaEnabled?.let { prefs.setPunascharanaEnabled(it) }
@@ -326,7 +318,7 @@ class JapaRepository(
                     if (cloudCountDate.after(localCountDate)) {
                         syncedInitialLifetimeCount = cloudPayload.initialLifetimeCount
                         if (cloudPayload.initialLifetimeCount != prefs.getInitialLifetimeCount()) {
-                            prefs.setInitialLifetimeCount(syncedInitialLifetimeCount)
+                            prefs.setInitialLifetimeCount(syncedInitialLifetimeCount, updateTimestamp = false)
                             prefs.setInitialLifetimeCountUpdatedAt(cloudPayload.settings.initialLifetimeCountUpdatedAt ?: "")
                             hasCloudNewerChanges = true
                         }
