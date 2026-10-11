@@ -29,11 +29,18 @@ import androidx.compose.material.icons.filled.TrendingDown
 import androidx.compose.material.icons.filled.WbSunny
 import androidx.compose.material.icons.filled.LightMode
 import androidx.compose.material.icons.filled.NightsStay
+import androidx.compose.material.icons.filled.Place
+import androidx.compose.material.icons.filled.EditLocation
+import androidx.compose.material.icons.outlined.Place
 import androidx.compose.material.icons.outlined.WbSunny
 import androidx.compose.material.icons.outlined.LightMode
 import androidx.compose.material.icons.outlined.NightsStay
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
+import androidx.compose.foundation.horizontalScroll
+import com.example.data.PlaceCategory
+import com.example.ui.components.PlaceBadge
+import com.example.ui.components.LocationPickerDialog
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -140,6 +147,8 @@ fun HistoryScreen(
     var selectedEntryToEdit by remember { mutableStateOf<JapaEntry?>(null) }
     var selectedCustomEntryToEdit by remember { mutableStateOf<Pair<CustomPracticeEntry, CustomPractice>?>(null) }
     var selectedSummaryDate by rememberSaveable { mutableStateOf<String?>(null) }
+    var locationEditDate by rememberSaveable { mutableStateOf<String?>(null) }
+    var selectedPlaceCategoryFilter by rememberSaveable { mutableStateOf<String?>(null) }
 
     val practiceTotals by viewModel.allPracticeTotals.collectAsState()
 
@@ -236,8 +245,8 @@ fun HistoryScreen(
         list.sortedByDescending { it.dateString }
     }
 
-    // Filter items based on selected selection AND search query
-    val filteredItems = remember(combinedList, selectedMantraId, searchQuery) {
+    // Filter items based on selected selection, category filter AND search query
+    val filteredItems = remember(combinedList, selectedMantraId, searchQuery, selectedPlaceCategoryFilter) {
         combinedList.filter { item ->
             // Match selected mantra ID
             val matchesFilter = when {
@@ -246,12 +255,33 @@ fun HistoryScreen(
                 else -> item is UnifiedHistoryItem.CustomItem && item.entry.practiceId == selectedMantraId
             }
 
-            // Match search query (date or practice name)
+            // Match place category filter
+            val matchesCategory = if (selectedPlaceCategoryFilter == null) {
+                true
+            } else {
+                val cat = when (item) {
+                    is UnifiedHistoryItem.GayatriItem -> item.entry.placeCategory ?: "Home"
+                    is UnifiedHistoryItem.CustomItem -> item.entry.placeCategory ?: "Home"
+                }
+                cat.equals(selectedPlaceCategoryFilter, ignoreCase = true)
+            }
+
+            // Match search query (date, practice name, place name or category)
             val matchesQuery = if (searchQuery.trim().isEmpty()) {
                 true
             } else {
                 val query = searchQuery.trim()
+                val placeName = when (item) {
+                    is UnifiedHistoryItem.GayatriItem -> item.entry.placeName ?: ""
+                    is UnifiedHistoryItem.CustomItem -> item.entry.placeName ?: ""
+                }
+                val placeCat = when (item) {
+                    is UnifiedHistoryItem.GayatriItem -> item.entry.placeCategory ?: ""
+                    is UnifiedHistoryItem.CustomItem -> item.entry.placeCategory ?: ""
+                }
                 item.dateString.contains(query, ignoreCase = true) ||
+                placeName.contains(query, ignoreCase = true) ||
+                placeCat.contains(query, ignoreCase = true) ||
                 when (item) {
                     is UnifiedHistoryItem.GayatriItem -> gayatriName.contains(query, ignoreCase = true) || "Gayatri".contains(query, ignoreCase = true)
                     is UnifiedHistoryItem.CustomItem -> {
@@ -261,8 +291,37 @@ fun HistoryScreen(
                 }
             }
 
-            matchesFilter && matchesQuery
+            matchesFilter && matchesCategory && matchesQuery
         }
+    }
+
+    val locationStats = remember(entries, allCustomEntries, selectedMantraId) {
+        val catMap = mutableMapOf<String, Long>()
+        var totalChants = 0L
+
+        if (selectedMantraId == null || selectedMantraId == GAYATRI_PRACTICE_ID) {
+            entries.forEach { e ->
+                val cat = e.placeCategory ?: "Home"
+                val count = e.dailyTotal.toLong()
+                if (count > 0) {
+                    catMap[cat] = (catMap[cat] ?: 0L) + count
+                    totalChants += count
+                }
+            }
+        }
+        if (selectedMantraId == null || selectedMantraId != GAYATRI_PRACTICE_ID) {
+            allCustomEntries.forEach { ce ->
+                if (selectedMantraId == null || ce.practiceId == selectedMantraId) {
+                    val cat = ce.placeCategory ?: "Home"
+                    val count = ce.dailyTotal.toLong()
+                    if (count > 0) {
+                        catMap[cat] = (catMap[cat] ?: 0L) + count
+                        totalChants += count
+                    }
+                }
+            }
+        }
+        catMap to totalChants
     }
 
     Scaffold(
@@ -646,6 +705,248 @@ fun HistoryScreen(
                 }
             }
 
+            // 4. PRACTICE LOCATIONS BREAKDOWN SECTION
+            if (locationStats.first.isNotEmpty()) {
+                item {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(16.dp),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f)),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(16.dp),
+                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Place,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                    Text(
+                                        text = "Practice Locations Breakdown",
+                                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
+                                    )
+                                }
+                                Text(
+                                    text = "${locationStats.first.size} Categories",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                                )
+                            }
+
+                            locationStats.first.entries.sortedByDescending { it.value }.forEach { (catId, count) ->
+                                val category = PlaceCategory.fromId(catId)
+                                val percentage = if (locationStats.second > 0) (count * 100f / locationStats.second) else 0f
+
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable {
+                                            selectedPlaceCategoryFilter = if (selectedPlaceCategoryFilter == category.id) null else category.id
+                                        },
+                                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                                ) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                        ) {
+                                            Box(
+                                                modifier = Modifier
+                                                    .size(10.dp)
+                                                    .background(category.primaryColor, CircleShape)
+                                            )
+                                            Text(
+                                                text = category.displayName,
+                                                style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.SemiBold)
+                                            )
+                                        }
+                                        Text(
+                                            text = String.format(Locale.US, "%,d chants (%.1f%%)", count, percentage),
+                                            style = MaterialTheme.typography.bodySmall.copy(
+                                                fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                                                fontWeight = FontWeight.Bold
+                                            ),
+                                            color = category.primaryColor
+                                        )
+                                    }
+                                    LinearProgressIndicator(
+                                        progress = { (percentage / 100f).coerceIn(0f, 1f) },
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .height(6.dp)
+                                            .clip(RoundedCornerShape(3.dp)),
+                                        color = category.primaryColor,
+                                        trackColor = category.containerColor
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // 5. FILTER BY CATEGORY CHIPS
+            item {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        text = "FILTER BY PLACE CATEGORY",
+                        style = MaterialTheme.typography.labelMedium.copy(
+                            fontWeight = FontWeight.Bold,
+                            letterSpacing = 0.8.sp
+                        ),
+                        color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f),
+                        modifier = Modifier.padding(top = 10.dp)
+                    )
+
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        FilterChip(
+                            selected = selectedPlaceCategoryFilter == null,
+                            onClick = { selectedPlaceCategoryFilter = null },
+                            label = {
+                                Text(
+                                    "All Places",
+                                    fontWeight = if (selectedPlaceCategoryFilter == null) FontWeight.Bold else FontWeight.Normal
+                                )
+                            }
+                        )
+
+                        PlaceCategory.entries.forEach { category ->
+                            val isSelected = selectedPlaceCategoryFilter.equals(category.id, ignoreCase = true)
+                            FilterChip(
+                                selected = isSelected,
+                                onClick = {
+                                    selectedPlaceCategoryFilter = if (isSelected) null else category.id
+                                },
+                                label = {
+                                    Text(
+                                        text = category.displayName,
+                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                        color = if (isSelected) category.primaryColor else MaterialTheme.colorScheme.onSurface
+                                    )
+                                },
+                                leadingIcon = {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(8.dp)
+                                            .background(category.primaryColor, CircleShape)
+                                    )
+                                },
+                                colors = FilterChipDefaults.filterChipColors(
+                                    selectedContainerColor = category.containerColor,
+                                    selectedLabelColor = category.contentColor
+                                ),
+                                border = FilterChipDefaults.filterChipBorder(
+                                    enabled = true,
+                                    selected = isSelected,
+                                    borderColor = if (isSelected) category.primaryColor else MaterialTheme.colorScheme.outline.copy(alpha = 0.3f),
+                                    borderWidth = if (isSelected) 2.dp else 1.dp
+                                )
+                            )
+                        }
+                    }
+                }
+            }
+
+            // 6. PRACTICE LOG ENTRIES SECTION
+            item {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 12.dp, bottom = 4.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "PRACTICE LOG ENTRIES (${filteredItems.size})",
+                        style = MaterialTheme.typography.labelMedium.copy(
+                            fontWeight = FontWeight.Bold,
+                            letterSpacing = 0.8.sp
+                        ),
+                        color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f)
+                    )
+
+                    if (selectedPlaceCategoryFilter != null) {
+                        TextButton(
+                            onClick = { selectedPlaceCategoryFilter = null },
+                            contentPadding = PaddingValues(0.dp)
+                        ) {
+                            Text("Clear Filter", fontSize = 12.sp)
+                        }
+                    }
+                }
+            }
+
+            if (filteredItems.isEmpty()) {
+                item {
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 12.dp),
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
+                        ),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(24.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = "No practice entries match your current search or location filter.",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                                textAlign = TextAlign.Center
+                            )
+                        }
+                    }
+                }
+            } else {
+                items(filteredItems) { item ->
+                    when (item) {
+                        is UnifiedHistoryItem.GayatriItem -> {
+                            HistoryItemRow(
+                                entry = item.entry,
+                                gayatriName = gayatriName,
+                                gayatriColor = gayatriColor,
+                                onClick = { selectedEntryToEdit = item.entry }
+                            )
+                        }
+                        is UnifiedHistoryItem.CustomItem -> {
+                            CustomHistoryItemRow(
+                                entry = item.entry,
+                                practice = item.practice,
+                                onClick = { selectedCustomEntryToEdit = item.entry to item.practice }
+                            )
+                        }
+                    }
+                }
+            }
+
             item { Spacer(modifier = Modifier.height(24.dp)) }
         }
     }
@@ -715,7 +1016,32 @@ fun HistoryScreen(
             gayatriEntry = gayatriEntry,
             allPractices = allPractices,
             customEntries = customEntriesForDate,
+            onEditLocation = { locationEditDate = date },
             onDismiss = { selectedSummaryDate = null }
+        )
+    }
+
+    // Location Picker Dialog for editing a past date's place
+    locationEditDate?.let { date ->
+        val gEntry = gayatriEntriesMap[date]
+        val cEntry = allCustomEntries.find { it.date == date }
+        val curName = gEntry?.placeName ?: cEntry?.placeName ?: "Home"
+        val curCat = gEntry?.placeCategory ?: cEntry?.placeCategory ?: "Home"
+        val curLat = gEntry?.latitude ?: cEntry?.latitude
+        val curLon = gEntry?.longitude ?: cEntry?.longitude
+
+        LocationPickerDialog(
+            initialPlaceName = curName,
+            initialCategory = curCat,
+            initialLatitude = curLat,
+            initialLongitude = curLon,
+            title = "Edit Location for $date",
+            confirmButtonText = "Save Place",
+            onDismiss = { locationEditDate = null },
+            onLocationSelected = { name, cat, lat, lon ->
+                viewModel.updateEntryLocation(date, name, cat, lat, lon)
+                locationEditDate = null
+            }
         )
     }
 }
@@ -1008,6 +1334,7 @@ fun DailySummaryDialog(
     gayatriEntry: JapaEntry?,
     allPractices: List<CustomPractice>,
     customEntries: Map<Long, CustomPracticeEntry>,
+    onEditLocation: (() -> Unit)? = null,
     onDismiss: () -> Unit
 ) {
     AlertDialog(
@@ -1035,6 +1362,39 @@ fun DailySummaryDialog(
                     .padding(vertical = 8.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
+                // Location badge for this day
+                val dayPlaceName = gayatriEntry?.placeName ?: customEntries.values.firstOrNull { !it.placeName.isNullOrBlank() }?.placeName ?: "Home"
+                val dayPlaceCat = gayatriEntry?.placeCategory ?: customEntries.values.firstOrNull { !it.placeCategory.isNullOrBlank() }?.placeCategory ?: "Home"
+                val dayLat = gayatriEntry?.latitude ?: customEntries.values.firstOrNull()?.latitude
+                val dayLon = gayatriEntry?.longitude ?: customEntries.values.firstOrNull()?.longitude
+
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f), RoundedCornerShape(10.dp))
+                        .padding(horizontal = 10.dp, vertical = 6.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    PlaceBadge(
+                        placeName = dayPlaceName,
+                        placeCategory = dayPlaceCat,
+                        latitude = dayLat,
+                        longitude = dayLon
+                    )
+
+                    if (onEditLocation != null) {
+                        TextButton(
+                            onClick = onEditLocation,
+                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)
+                        ) {
+                            Icon(Icons.Default.EditLocation, contentDescription = null, modifier = Modifier.size(14.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("Edit Place", fontSize = 11.sp)
+                        }
+                    }
+                }
+
                 Text(
                     text = "Mantra Japa Summary",
                     style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold, letterSpacing = 0.5.sp),
@@ -1255,6 +1615,14 @@ fun HistoryItemRow(
                         color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
                     )
                 }
+
+                PlaceBadge(
+                    placeName = entry.placeName,
+                    placeCategory = entry.placeCategory,
+                    latitude = entry.latitude,
+                    longitude = entry.longitude,
+                    modifier = Modifier.padding(top = 8.dp)
+                )
             }
 
             Column(horizontalAlignment = Alignment.End) {
@@ -1361,6 +1729,14 @@ fun CustomHistoryItemRow(
                         )
                     }
                 }
+
+                PlaceBadge(
+                    placeName = entry.placeName,
+                    placeCategory = entry.placeCategory,
+                    latitude = entry.latitude,
+                    longitude = entry.longitude,
+                    modifier = Modifier.padding(top = 8.dp)
+                )
             }
             
             Column(horizontalAlignment = Alignment.End) {

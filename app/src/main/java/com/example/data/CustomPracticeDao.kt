@@ -77,6 +77,9 @@ interface CustomPracticeDao {
 
     @Query("DELETE FROM japa_sessions WHERE practiceId = :practiceId AND date = :date")
     suspend fun clearSessionsForPracticeAndDate(practiceId: Long, date: String)
+
+    @Query("UPDATE japa_sessions SET placeName = :placeName, placeCategory = :placeCategory WHERE id = :id")
+    suspend fun updateSessionLocation(id: Long, placeName: String, placeCategory: String)
 }
 
 data class PracticeTotal(

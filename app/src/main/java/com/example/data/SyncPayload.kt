@@ -1,12 +1,11 @@
 package com.example.data
 
 data class SyncPayload(
-    val version: Int = 3,
+    val version: Int = 4,
     val lastSynced: String,
     val initialLifetimeCount: Long,
     val settings: SyncSettings = SyncSettings(),
     val entries: Map<String, SyncEntry> = emptyMap(),
-    // Version 3 addition:
     val customPractices: List<SyncCustomPractice> = emptyList(),
     val customEntries: List<SyncCustomPracticeEntry> = emptyList()
 )
@@ -28,7 +27,11 @@ data class SyncEntry(
     val pratahPunascharana: Int? = 0,
     val madhyahnikaPunascharana: Int? = 0,
     val sayamPunascharana: Int? = 0,
-    val updatedAt: String
+    val updatedAt: String,
+    val placeName: String? = null,
+    val placeCategory: String? = null,
+    val latitude: Double? = null,
+    val longitude: Double? = null
 ) {
     val dailyTotal: Int
         get() = (if (morning > 0) morning else 0) + (pratahPunascharana ?: 0) +
@@ -67,7 +70,11 @@ data class SyncCustomPracticeEntry(
     val morningPunasCount: Int = 0,
     val afternoonPunasCount: Int = 0,
     val eveningPunasCount: Int = 0,
-    val updatedAt: String
+    val updatedAt: String,
+    val placeName: String? = null,
+    val placeCategory: String? = null,
+    val latitude: Double? = null,
+    val longitude: Double? = null
 ) {
     val dailyTotal: Int
         get() = maxOf(0, count) + maxOf(0, morningCount) + maxOf(0, afternoonCount) + maxOf(0, eveningCount) + maxOf(0, morningPunasCount) + maxOf(0, afternoonPunasCount) + maxOf(0, eveningPunasCount)

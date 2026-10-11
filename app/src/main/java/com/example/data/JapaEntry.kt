@@ -27,7 +27,12 @@ data class JapaEntry(
     @ColumnInfo(name = "sayamPunascharanaCount", defaultValue = "0")
     val sayamPunascharanaCount: Int = 0,
     
-    val updatedAt: String // ISO-8601 UTC timestamp
+    val updatedAt: String, // ISO-8601 UTC timestamp
+
+    val placeName: String? = null,
+    val placeCategory: String? = null,
+    val latitude: Double? = null,
+    val longitude: Double? = null
 ) {
     val dailyTotal: Int
         get() = (if (pratahSandhyaCount > 0) pratahSandhyaCount else 0) + pratahPunascharanaCount +

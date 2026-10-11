@@ -154,6 +154,55 @@ class JapaViewModel(application: Application) : AndroidViewModel(application) {
     private val _searchQuery = MutableStateFlow("")
     val searchQuery: StateFlow<String> = _searchQuery.asStateFlow()
 
+    val activePlaceName: StateFlow<String> = prefs.activePlaceName
+    val activePlaceCategory: StateFlow<String> = prefs.activePlaceCategory
+    val activeLatitude: StateFlow<Double?> = prefs.activeLatitude
+    val activeLongitude: StateFlow<Double?> = prefs.activeLongitude
+
+    fun setActiveLocation(name: String, category: String, lat: Double? = null, lon: Double? = null) {
+        prefs.setActiveLocation(name, category, lat, lon)
+    }
+
+    fun updateEntryLocation(date: String, placeName: String, placeCategory: String, latitude: Double? = null, longitude: Double? = null) {
+        viewModelScope.launch {
+            val gExisting = database.japaDao().getEntryByDate(date)
+            if (gExisting != null) {
+                val updated = gExisting.copy(
+                    placeName = placeName,
+                    placeCategory = placeCategory,
+                    latitude = latitude ?: gExisting.latitude,
+                    longitude = longitude ?: gExisting.longitude,
+                    updatedAt = repository.getCurrentUTCTimestamp()
+                )
+                database.japaDao().insertOrUpdate(updated)
+                if (date == getTodayDateString()) {
+                    _todayEntry.value = updated
+                }
+            }
+            val allCustoms = customPracticeDao.getAllCustomPracticeEntries()
+            allCustoms.filter { it.date == date }.forEach { ce ->
+                val updated = ce.copy(
+                    placeName = placeName,
+                    placeCategory = placeCategory,
+                    latitude = latitude ?: ce.latitude,
+                    longitude = longitude ?: ce.longitude,
+                    updatedAt = repository.getCurrentUTCTimestamp()
+                )
+                customPracticeDao.insertOrUpdateEntry(updated)
+                if (date == getTodayDateString() && ce.practiceId == activePracticeId.value) {
+                    _activeCustomEntry.value = updated
+                }
+            }
+            repository.syncWithCloud(isLocalUpdate = true)
+        }
+    }
+
+    fun updateSessionLocation(sessionId: Long, placeName: String, placeCategory: String) {
+        viewModelScope.launch {
+            customPracticeDao.updateSessionLocation(sessionId, placeName, placeCategory)
+        }
+    }
+
     // Status messages for sync progress
     val syncMessage: StateFlow<String> = repository.syncState.map { state ->
         when (state) {
@@ -395,7 +444,11 @@ class JapaViewModel(application: Application) : AndroidViewModel(application) {
                 date = dateStr,
                 time = timeStr,
                 count = count,
-                typeDetail = typeDetail
+                typeDetail = typeDetail,
+                placeName = activePlaceName.value,
+                placeCategory = activePlaceCategory.value,
+                latitude = activeLatitude.value,
+                longitude = activeLongitude.value
             )
             customPracticeDao.insertSession(session)
         }
@@ -410,15 +463,30 @@ class JapaViewModel(application: Application) : AndroidViewModel(application) {
     fun updateCustomPracticeCount(practiceId: Long, date: String, count: Int) {
         viewModelScope.launch {
             var existing = customPracticeDao.getEntryByDate(practiceId, date)
+            val pName = existing?.placeName ?: activePlaceName.value
+            val pCat = existing?.placeCategory ?: activePlaceCategory.value
+            val pLat = existing?.latitude ?: activeLatitude.value
+            val pLon = existing?.longitude ?: activeLongitude.value
             if (existing == null) {
                 existing = CustomPracticeEntry(
                     practiceId = practiceId,
                     date = date,
                     count = count,
-                    updatedAt = repository.getCurrentUTCTimestamp()
+                    updatedAt = repository.getCurrentUTCTimestamp(),
+                    placeName = pName,
+                    placeCategory = pCat,
+                    latitude = pLat,
+                    longitude = pLon
                 )
             } else {
-                existing = existing.copy(count = count, updatedAt = repository.getCurrentUTCTimestamp())
+                existing = existing.copy(
+                    count = count,
+                    updatedAt = repository.getCurrentUTCTimestamp(),
+                    placeName = pName,
+                    placeCategory = pCat,
+                    latitude = pLat,
+                    longitude = pLon
+                )
             }
             customPracticeDao.insertOrUpdateEntry(existing)
             repository.syncWithCloud(isLocalUpdate = true)
@@ -438,6 +506,10 @@ class JapaViewModel(application: Application) : AndroidViewModel(application) {
     ) {
         viewModelScope.launch {
             var existing = customPracticeDao.getEntryByDate(practiceId, date)
+            val pName = existing?.placeName ?: activePlaceName.value
+            val pCat = existing?.placeCategory ?: activePlaceCategory.value
+            val pLat = existing?.latitude ?: activeLatitude.value
+            val pLon = existing?.longitude ?: activeLongitude.value
             if (existing == null) {
                 existing = CustomPracticeEntry(
                     practiceId = practiceId,
@@ -449,7 +521,11 @@ class JapaViewModel(application: Application) : AndroidViewModel(application) {
                     morningPunasCount = morningPunas,
                     afternoonPunasCount = afternoonPunas,
                     eveningPunasCount = eveningPunas,
-                    updatedAt = repository.getCurrentUTCTimestamp()
+                    updatedAt = repository.getCurrentUTCTimestamp(),
+                    placeName = pName,
+                    placeCategory = pCat,
+                    latitude = pLat,
+                    longitude = pLon
                 )
             } else {
                 existing = existing.copy(
@@ -459,7 +535,11 @@ class JapaViewModel(application: Application) : AndroidViewModel(application) {
                     morningPunasCount = morningPunas,
                     afternoonPunasCount = afternoonPunas,
                     eveningPunasCount = eveningPunas,
-                    updatedAt = repository.getCurrentUTCTimestamp()
+                    updatedAt = repository.getCurrentUTCTimestamp(),
+                    placeName = pName,
+                    placeCategory = pCat,
+                    latitude = pLat,
+                    longitude = pLon
                 )
             }
             customPracticeDao.insertOrUpdateEntry(existing)
@@ -479,6 +559,10 @@ class JapaViewModel(application: Application) : AndroidViewModel(application) {
     ) {
         viewModelScope.launch {
             var existing = database.japaDao().getEntryByDate(date)
+            val pName = existing?.placeName ?: activePlaceName.value
+            val pCat = existing?.placeCategory ?: activePlaceCategory.value
+            val pLat = existing?.latitude ?: activeLatitude.value
+            val pLon = existing?.longitude ?: activeLongitude.value
             if (existing == null) {
                 existing = JapaEntry(
                     date = date,
@@ -488,7 +572,11 @@ class JapaViewModel(application: Application) : AndroidViewModel(application) {
                     pratahPunascharanaCount = morningPunas,
                     madhyahnikaPunascharanaCount = afternoonPunas,
                     sayamPunascharanaCount = eveningPunas,
-                    updatedAt = repository.getCurrentUTCTimestamp()
+                    updatedAt = repository.getCurrentUTCTimestamp(),
+                    placeName = pName,
+                    placeCategory = pCat,
+                    latitude = pLat,
+                    longitude = pLon
                 )
             } else {
                 existing = existing.copy(
@@ -498,7 +586,11 @@ class JapaViewModel(application: Application) : AndroidViewModel(application) {
                     pratahPunascharanaCount = morningPunas,
                     madhyahnikaPunascharanaCount = afternoonPunas,
                     sayamPunascharanaCount = eveningPunas,
-                    updatedAt = repository.getCurrentUTCTimestamp()
+                    updatedAt = repository.getCurrentUTCTimestamp(),
+                    placeName = pName,
+                    placeCategory = pCat,
+                    latitude = pLat,
+                    longitude = pLon
                 )
             }
             database.japaDao().insertOrUpdate(existing)
@@ -555,9 +647,13 @@ class JapaViewModel(application: Application) : AndroidViewModel(application) {
         evening: Int,
         pratahPunas: Int = _todayEntry.value?.pratahPunascharanaCount ?: 0,
         madhyahnikaPunas: Int = _todayEntry.value?.madhyahnikaPunascharanaCount ?: 0,
-        sayamPunas: Int = _todayEntry.value?.sayamPunascharanaCount ?: 0
+        sayamPunas: Int = _todayEntry.value?.sayamPunascharanaCount ?: 0,
+        placeName: String? = null,
+        placeCategory: String? = null,
+        latitude: Double? = null,
+        longitude: Double? = null
     ) {
-        repository.saveEntry(date, morning, afternoon, evening, pratahPunas, madhyahnikaPunas, sayamPunas) {
+        repository.saveEntry(date, morning, afternoon, evening, pratahPunas, madhyahnikaPunas, sayamPunas, placeName, placeCategory, latitude, longitude) {
             if (date == getTodayDateString()) {
                 // Instantly update local today state
                 _todayEntry.value = _todayEntry.value?.copy(
@@ -566,7 +662,11 @@ class JapaViewModel(application: Application) : AndroidViewModel(application) {
                     sayamSandhyaCount = evening,
                     pratahPunascharanaCount = pratahPunas,
                     madhyahnikaPunascharanaCount = madhyahnikaPunas,
-                    sayamPunascharanaCount = sayamPunas
+                    sayamPunascharanaCount = sayamPunas,
+                    placeName = placeName ?: _todayEntry.value?.placeName ?: activePlaceName.value,
+                    placeCategory = placeCategory ?: _todayEntry.value?.placeCategory ?: activePlaceCategory.value,
+                    latitude = latitude ?: _todayEntry.value?.latitude ?: activeLatitude.value,
+                    longitude = longitude ?: _todayEntry.value?.longitude ?: activeLongitude.value
                 )
             }
             // Trigger widget updates so widgets reflect the updated/cleared counts instantly

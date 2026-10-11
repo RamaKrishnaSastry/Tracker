@@ -97,10 +97,20 @@ class JapaRepository(
         pratahPunascharana: Int = 0,
         madhyahnikaPunascharana: Int = 0,
         sayamPunascharana: Int = 0,
+        placeName: String? = null,
+        placeCategory: String? = null,
+        latitude: Double? = null,
+        longitude: Double? = null,
         onComplete: (() -> Unit)? = null
     ) {
         scope.launch {
             val nowStr = getCurrentUTCTimestamp()
+            val existing = dao.getEntryByDate(date)
+            val resolvedPlaceName = placeName ?: existing?.placeName ?: prefs.getActivePlaceName()
+            val resolvedPlaceCat = placeCategory ?: existing?.placeCategory ?: prefs.getActivePlaceCategory()
+            val resolvedLat = latitude ?: existing?.latitude ?: prefs.getActiveLatitude()
+            val resolvedLon = longitude ?: existing?.longitude ?: prefs.getActiveLongitude()
+
             val entry = JapaEntry(
                 date = date,
                 pratahSandhyaCount = morning,
@@ -109,10 +119,14 @@ class JapaRepository(
                 pratahPunascharanaCount = pratahPunascharana,
                 madhyahnikaPunascharanaCount = madhyahnikaPunascharana,
                 sayamPunascharanaCount = sayamPunascharana,
-                updatedAt = nowStr
+                updatedAt = nowStr,
+                placeName = resolvedPlaceName,
+                placeCategory = resolvedPlaceCat,
+                latitude = resolvedLat,
+                longitude = resolvedLon
             )
             dao.insertOrUpdate(entry)
-            Log.d(TAG, "Saved JapaEntry locally for $date: Sandhya($morning, $afternoon, $evening) Punas($pratahPunascharana, $madhyahnikaPunascharana, $sayamPunascharana)")
+            Log.d(TAG, "Saved JapaEntry locally for $date: Sandhya($morning, $afternoon, $evening) Punas($pratahPunascharana, $madhyahnikaPunascharana, $sayamPunascharana) Place($resolvedPlaceName, $resolvedPlaceCat)")
             syncWithCloud(isLocalUpdate = true)
             onComplete?.let {
                 CoroutineScope(Dispatchers.Main).launch { it() }
@@ -159,7 +173,11 @@ class JapaRepository(
                             pratahPunascharanaCount = cloudEntry.pratahPunascharana ?: 0,
                             madhyahnikaPunascharanaCount = cloudEntry.madhyahnikaPunascharana ?: 0,
                             sayamPunascharanaCount = cloudEntry.sayamPunascharana ?: 0,
-                            updatedAt = cloudEntry.updatedAt
+                            updatedAt = cloudEntry.updatedAt,
+                            placeName = cloudEntry.placeName,
+                            placeCategory = cloudEntry.placeCategory,
+                            latitude = cloudEntry.latitude,
+                            longitude = cloudEntry.longitude
                         )
                     }
                     dao.insertEntries(cloudEntries)
@@ -205,7 +223,11 @@ class JapaRepository(
                             morningPunasCount = ce.morningPunasCount,
                             afternoonPunasCount = ce.afternoonPunasCount,
                             eveningPunasCount = ce.eveningPunasCount,
-                            updatedAt = ce.updatedAt
+                            updatedAt = ce.updatedAt,
+                            placeName = ce.placeName,
+                            placeCategory = ce.placeCategory,
+                            latitude = ce.latitude,
+                            longitude = ce.longitude
                         )
                     }
                     customEntries.forEach {
@@ -382,7 +404,11 @@ class JapaRepository(
                             pratahPunascharanaCount = cloudEntry.pratahPunascharana ?: 0,
                             madhyahnikaPunascharanaCount = cloudEntry.madhyahnikaPunascharana ?: 0,
                             sayamPunascharanaCount = cloudEntry.sayamPunascharana ?: 0,
-                            updatedAt = cloudEntry.updatedAt
+                            updatedAt = cloudEntry.updatedAt,
+                            placeName = cloudEntry.placeName ?: localEntry?.placeName,
+                            placeCategory = cloudEntry.placeCategory ?: localEntry?.placeCategory,
+                            latitude = cloudEntry.latitude ?: localEntry?.latitude,
+                            longitude = cloudEntry.longitude ?: localEntry?.longitude
                         )
 
                         if (localEntry == null) {
@@ -508,7 +534,11 @@ class JapaRepository(
                             morningPunasCount = ce.morningPunasCount,
                             afternoonPunasCount = ce.afternoonPunasCount,
                             eveningPunasCount = ce.eveningPunasCount,
-                            updatedAt = ce.updatedAt
+                            updatedAt = ce.updatedAt,
+                            placeName = ce.placeName ?: localCe?.placeName,
+                            placeCategory = ce.placeCategory ?: localCe?.placeCategory,
+                            latitude = ce.latitude ?: localCe?.latitude,
+                            longitude = ce.longitude ?: localCe?.longitude
                         )
 
                         if (localCe == null) {
@@ -568,7 +598,11 @@ class JapaRepository(
                             pratahPunascharana = entry.pratahPunascharanaCount,
                             madhyahnikaPunascharana = entry.madhyahnikaPunascharanaCount,
                             sayamPunascharana = entry.sayamPunascharanaCount,
-                            updatedAt = entry.updatedAt
+                            updatedAt = entry.updatedAt,
+                            placeName = entry.placeName,
+                            placeCategory = entry.placeCategory,
+                            latitude = entry.latitude,
+                            longitude = entry.longitude
                         )
                     }
                     
@@ -606,13 +640,17 @@ class JapaRepository(
                             morningPunasCount = ce.morningPunasCount,
                             afternoonPunasCount = ce.afternoonPunasCount,
                             eveningPunasCount = ce.eveningPunasCount,
-                            updatedAt = ce.updatedAt
+                            updatedAt = ce.updatedAt,
+                            placeName = ce.placeName,
+                            placeCategory = ce.placeCategory,
+                            latitude = ce.latitude,
+                            longitude = ce.longitude
                         )
                     }
 
                     val currentSyncTime = getCurrentUTCTimestamp()
                     val payload = SyncPayload(
-                        version = 3,
+                        version = 4,
                         lastSynced = currentSyncTime,
                         initialLifetimeCount = syncedInitialLifetimeCount,
                         settings = SyncSettings(

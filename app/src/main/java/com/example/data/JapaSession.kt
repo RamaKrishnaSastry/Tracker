@@ -10,5 +10,9 @@ data class JapaSession(
     val date: String, // YYYY-MM-DD
     val time: String, // e.g. "06:30 AM" or "12:45 PM"
     val count: Int,
-    val typeDetail: String = "" // e.g., "Morning", "Midday", "Evening", "Session"
+    val typeDetail: String = "", // e.g., "Morning", "Midday", "Evening", "Session"
+    val placeName: String? = null,
+    val placeCategory: String? = null,
+    val latitude: Double? = null,
+    val longitude: Double? = null
 )

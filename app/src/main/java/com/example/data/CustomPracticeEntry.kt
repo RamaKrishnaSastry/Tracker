@@ -13,7 +13,11 @@ data class CustomPracticeEntry(
     val morningPunasCount: Int = 0,
     val afternoonPunasCount: Int = 0,
     val eveningPunasCount: Int = 0,
-    val updatedAt: String
+    val updatedAt: String,
+    val placeName: String? = null,
+    val placeCategory: String? = null,
+    val latitude: Double? = null,
+    val longitude: Double? = null
 ) {
     val dailyTotal: Int
         get() = maxOf(0, count) + maxOf(0, morningCount) + maxOf(0, afternoonCount) + maxOf(0, eveningCount) + maxOf(0, morningPunasCount) + maxOf(0, afternoonPunasCount) + maxOf(0, eveningPunasCount)

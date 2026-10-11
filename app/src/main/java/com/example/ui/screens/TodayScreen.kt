@@ -51,6 +51,9 @@ import com.example.api.SyncState
 import com.example.ui.theme.getMantraColor
 import com.example.ui.theme.toHexString
 import com.example.ui.components.ColorPickerDialog
+import com.example.ui.components.PlaceBadge
+import com.example.ui.components.LocationPickerDialog
+import com.example.data.PlaceCategory
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -66,6 +69,12 @@ fun TodayScreen(
     val activeCustomEntry by viewModel.activeCustomEntry.collectAsState()
     val todayDate by viewModel.todayDate.collectAsState()
     val userName by viewModel.userName.collectAsState()
+
+    val activePlaceName by viewModel.activePlaceName.collectAsState()
+    val activePlaceCategory by viewModel.activePlaceCategory.collectAsState()
+    val activeLatitude by viewModel.activeLatitude.collectAsState()
+    val activeLongitude by viewModel.activeLongitude.collectAsState()
+    var showLocationPicker by remember { mutableStateOf(false) }
 
     val todayEntry by viewModel.todayEntry.collectAsState()
     val isPunascharanaEnabled by viewModel.isPunascharanaEnabled.collectAsState()
@@ -451,65 +460,123 @@ fun TodayScreen(
                 Spacer(modifier = Modifier.height(4.dp))
             }
 
+            // Elegant Practice Meta Row: Location Chip & Sync Status Pill
             Row(
-                modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 8.dp, bottom = 4.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.Center
             ) {
+                // Interactive Practice Location Chip
+                Surface(
+                    onClick = { showLocationPicker = true },
+                    shape = RoundedCornerShape(20.dp),
+                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)),
+                    modifier = Modifier.testTag("today_location_chip")
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        val activeCategory = PlaceCategory.fromId(activePlaceCategory)
+                        Box(
+                            modifier = Modifier
+                                .size(7.dp)
+                                .clip(CircleShape)
+                                .background(activeCategory.primaryColor)
+                        )
+                        Icon(
+                            imageVector = Icons.Default.Place,
+                            contentDescription = "Practice Location",
+                            tint = activeCategory.primaryColor,
+                            modifier = Modifier.size(14.dp)
+                        )
+                        Text(
+                            text = activePlaceName.ifBlank { activeCategory.displayName },
+                            style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold),
+                            color = MaterialTheme.colorScheme.onSurface,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        Text(
+                            text = "•",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                        )
+                        Text(
+                            text = activeCategory.displayName,
+                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Medium),
+                            color = activeCategory.primaryColor
+                        )
+                        Icon(
+                            imageVector = Icons.Default.EditLocation,
+                            contentDescription = "Change Location",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                            modifier = Modifier.size(13.dp)
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.width(8.dp))
+
+                // Compact Sync Pill
                 Row(
                     modifier = Modifier
                         .background(
                             color = when (syncState) {
-                                SyncState.SYNCED -> activeMantraContainerColor.copy(alpha = 0.3f)
-                                SyncState.SYNCING -> MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.3f)
-                                SyncState.ERROR -> MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.2f)
+                                SyncState.SYNCED -> activeMantraContainerColor.copy(alpha = 0.35f)
+                                SyncState.SYNCING -> MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.35f)
+                                SyncState.ERROR -> MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.25f)
                                 else -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
                             },
-                            shape = RoundedCornerShape(12.dp)
+                            shape = RoundedCornerShape(20.dp)
                         )
-                        .padding(horizontal = 12.dp, vertical = 6.dp),
+                        .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f), RoundedCornerShape(20.dp))
+                        .padding(horizontal = 10.dp, vertical = 6.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.Center
                 ) {
                     val (icon, color, label) = when (syncState) {
-                        SyncState.DISCONNECTED -> Triple(Icons.Default.CloudOff, MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f), "Cloud Backup: Off")
+                        SyncState.DISCONNECTED -> Triple(Icons.Default.CloudOff, MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f), "Offline")
                         SyncState.OFFLINE -> Triple(Icons.Default.CloudOff, MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f), "Offline")
-                        SyncState.SYNC_PENDING -> Triple(Icons.Default.Cloud, MaterialTheme.colorScheme.secondary, "Sync pending")
+                        SyncState.SYNC_PENDING -> Triple(Icons.Default.Cloud, MaterialTheme.colorScheme.secondary, "Syncing")
                         SyncState.SYNCING -> Triple(Icons.Default.Sync, activeMantraColor, "Syncing...")
-                        SyncState.SYNCED -> Triple(Icons.Default.CloudDone, activeMantraColor, lastSyncText)
-                        SyncState.ERROR -> Triple(Icons.Default.Error, MaterialTheme.colorScheme.error, "Sync failed.")
+                        SyncState.SYNCED -> Triple(Icons.Default.CloudDone, activeMantraColor, "Synced")
+                        SyncState.ERROR -> Triple(Icons.Default.Error, MaterialTheme.colorScheme.error, "Sync error")
                     }
                     Icon(
                         imageVector = icon,
                         contentDescription = label,
                         tint = color,
-                        modifier = Modifier.size(16.dp)
+                        modifier = Modifier.size(14.dp)
                     )
-                    Spacer(modifier = Modifier.width(6.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
                     Text(
                         text = label,
-                        style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Medium),
+                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Medium),
                         color = color
                     )
-                }
 
-                if (syncState != SyncState.DISCONNECTED) {
-                    Spacer(modifier = Modifier.width(8.dp))
-                    IconButton(
-                        onClick = { viewModel.triggerManualSync() },
-                        modifier = Modifier
-                            .size(28.dp)
-                            .background(activeMantraColor.copy(alpha = 0.1f), CircleShape)
-                    ) {
-                        Icon(
-                            Icons.Default.CloudUpload,
-                            contentDescription = "Save Manually to Cloud",
-                            tint = activeMantraColor,
-                            modifier = Modifier.size(16.dp)
-                        )
+                    if (syncState != SyncState.DISCONNECTED) {
+                        Spacer(modifier = Modifier.width(4.dp))
+                        IconButton(
+                            onClick = { viewModel.triggerManualSync() },
+                            modifier = Modifier.size(18.dp)
+                        ) {
+                            Icon(
+                                Icons.Default.CloudUpload,
+                                contentDescription = "Manual Cloud Sync",
+                                tint = activeMantraColor,
+                                modifier = Modifier.size(12.dp)
+                            )
+                        }
                     }
                 }
             }
+
 
             if (weeklySankalpaTarget > 0) {
                 val progress = (weeklyCount.toFloat() / weeklySankalpaTarget.toFloat()).coerceIn(0f, 1f)
@@ -605,6 +672,23 @@ fun TodayScreen(
                 }
             )
         }
+    }
+
+    if (showLocationPicker) {
+        LocationPickerDialog(
+            initialPlaceName = activePlaceName,
+            initialCategory = activePlaceCategory,
+            initialLatitude = activeLatitude,
+            initialLongitude = activeLongitude,
+            title = "Practice Location",
+            confirmButtonText = "Set Active Location",
+            onDismiss = { showLocationPicker = false },
+            onLocationSelected = { name, category, lat, lon ->
+                viewModel.setActiveLocation(name, category, lat, lon)
+                viewModel.updateEntryLocation(todayDate, name, category, lat, lon)
+                showLocationPicker = false
+            }
+        )
     }
 }
 

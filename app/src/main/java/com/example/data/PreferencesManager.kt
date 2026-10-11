@@ -185,6 +185,44 @@ class PreferencesManager(context: Context) {
         _weeklySankalpaTarget.value = target
     }
 
+    private val _activePlaceName = MutableStateFlow(getActivePlaceName())
+    val activePlaceName: StateFlow<String> = _activePlaceName.asStateFlow()
+
+    private val _activePlaceCategory = MutableStateFlow(getActivePlaceCategory())
+    val activePlaceCategory: StateFlow<String> = _activePlaceCategory.asStateFlow()
+
+    private val _activeLatitude = MutableStateFlow(getActiveLatitude())
+    val activeLatitude: StateFlow<Double?> = _activeLatitude.asStateFlow()
+
+    private val _activeLongitude = MutableStateFlow(getActiveLongitude())
+    val activeLongitude: StateFlow<Double?> = _activeLongitude.asStateFlow()
+
+    fun getActivePlaceName(): String = prefs.getString("active_place_name", "Home") ?: "Home"
+    fun getActivePlaceCategory(): String = prefs.getString("active_place_category", "Home") ?: "Home"
+    fun getActiveLatitude(): Double? {
+        val str = prefs.getString("active_latitude", null) ?: return null
+        return str.toDoubleOrNull()
+    }
+    fun getActiveLongitude(): Double? {
+        val str = prefs.getString("active_longitude", null) ?: return null
+        return str.toDoubleOrNull()
+    }
+
+    fun setActiveLocation(name: String, category: String, lat: Double? = null, lon: Double? = null) {
+        val edit = prefs.edit()
+            .putString("active_place_name", name)
+            .putString("active_place_category", category)
+        if (lat != null && lon != null) {
+            edit.putString("active_latitude", lat.toString())
+            edit.putString("active_longitude", lon.toString())
+        }
+        edit.apply()
+        _activePlaceName.value = name
+        _activePlaceCategory.value = category
+        _activeLatitude.value = lat
+        _activeLongitude.value = lon
+    }
+
     fun updateSettingsTimestamp() {
         val now = java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", java.util.Locale.US).apply {
             timeZone = java.util.TimeZone.getTimeZone("UTC")
