@@ -5,14 +5,20 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AllInclusive
 import androidx.compose.material.icons.filled.ChevronLeft
 import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.filled.Place
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -24,11 +30,14 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.data.CustomPractice
+import com.example.data.CustomPracticeEntry
 import com.example.data.JapaEntry
 import com.example.data.PlaceCategory
+import com.example.ui.GAYATRI_PRACTICE_ID
 import com.example.ui.theme.getMantraColor
 import java.text.SimpleDateFormat
 import java.util.Calendar
@@ -347,3 +356,726 @@ fun InteractiveMonthlyCalendar(
         }
     }
 }
+
+@Composable
+fun CalendarSection(
+    selectedMantraId: Long?,
+    gayatriEntriesMap: Map<String, JapaEntry>,
+    customEntriesMap: Map<Pair<Long, String>, CustomPracticeEntry>,
+    combinedDailyTotalsMap: Map<String, Int>,
+    activeColor: Color,
+    allPractices: List<CustomPractice>,
+    currentCalendar: Calendar,
+    onCalendarChange: (Calendar) -> Unit,
+    onDateClick: (String) -> Unit
+) {
+    val year = currentCalendar.get(Calendar.YEAR)
+    val month = currentCalendar.get(Calendar.MONTH) + 1 // 1-indexed
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f)),
+        shape = RoundedCornerShape(16.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            // Month switcher header
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                IconButton(
+                    onClick = {
+                        val newCal = Calendar.getInstance().apply {
+                            time = currentCalendar.time
+                            add(Calendar.MONTH, -1)
+                        }
+                        onCalendarChange(newCal)
+                    }
+                ) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                        contentDescription = "Previous Month"
+                    )
+                }
+
+                val monthYearString = remember(year, month) {
+                    val sdf = SimpleDateFormat("MMMM yyyy", Locale.getDefault())
+                    val calTemp = Calendar.getInstance().apply {
+                        set(Calendar.YEAR, year)
+                        set(Calendar.MONTH, month - 1)
+                    }
+                    sdf.format(calTemp.time)
+                }
+
+                Text(
+                    text = monthYearString,
+                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+
+                IconButton(
+                    onClick = {
+                        val newCal = Calendar.getInstance().apply {
+                            time = currentCalendar.time
+                            add(Calendar.MONTH, 1)
+                        }
+                        onCalendarChange(newCal)
+                    }
+                ) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                        contentDescription = "Next Month"
+                    )
+                }
+            }
+            Spacer(modifier = Modifier.height(12.dp))
+
+            InteractiveMonthlyCalendar(
+                year = year,
+                month = month,
+                selectedMantraId = selectedMantraId,
+                gayatriEntriesMap = gayatriEntriesMap,
+                customEntriesMap = customEntriesMap,
+                combinedDailyTotalsMap = combinedDailyTotalsMap,
+                activeColor = activeColor,
+                allPractices = allPractices,
+                onDateClick = onDateClick
+            )
+        }
+    }
+}
+
+@Composable
+fun HistoryItemRow(
+    entry: JapaEntry,
+    gayatriName: String,
+    gayatriColor: Color,
+    onClick: () -> Unit
+) {
+    val displayDate = remember(entry.date) {
+        try {
+            val date = SimpleDateFormat("yyyy-MM-dd", Locale.US).parse(entry.date)
+            SimpleDateFormat("MMMM dd, yyyy", Locale.getDefault()).format(date ?: Date())
+        } catch (e: Exception) {
+            entry.date
+        }
+    }
+
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .testTag("history_item_${entry.date}"),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surface
+        ),
+        border = androidx.compose.foundation.BorderStroke(1.dp, gayatriColor.copy(alpha = 0.3f)),
+        shape = RoundedCornerShape(16.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        modifier = Modifier
+                            .size(10.dp)
+                            .background(gayatriColor, CircleShape)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = gayatriName,
+                        style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold),
+                        color = gayatriColor
+                    )
+                }
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = displayDate,
+                    style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Bold),
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                Spacer(modifier = Modifier.height(6.dp))
+                @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+                androidx.compose.foundation.layout.FlowRow(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    val mStr = if (entry.pratahSandhyaCount == -1) "Pass" else entry.pratahSandhyaCount.toString()
+                    val aStr = if (entry.madhyahnikaSandhyaCount == -1) "Pass" else entry.madhyahnikaSandhyaCount.toString()
+                    val sStr = if (entry.sayamSandhyaCount == -1) "Pass" else entry.sayamSandhyaCount.toString()
+                    
+                    Text(
+                        text = "Morn: $mStr" + if (entry.pratahPunascharanaCount > 0) "+${entry.pratahPunascharanaCount}" else "",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                    )
+                    Text(
+                        text = "Noon: $aStr" + if (entry.madhyahnikaPunascharanaCount > 0) "+${entry.madhyahnikaPunascharanaCount}" else "",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                    )
+                    Text(
+                        text = "Eve: $sStr" + if (entry.sayamPunascharanaCount > 0) "+${entry.sayamPunascharanaCount}" else "",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                    )
+                }
+
+                PlaceBadge(
+                    placeName = entry.placeName,
+                    placeCategory = entry.placeCategory,
+                    latitude = entry.latitude,
+                    longitude = entry.longitude,
+                    modifier = Modifier.padding(top = 8.dp)
+                )
+            }
+
+            Column(horizontalAlignment = Alignment.End) {
+                Text(
+                    text = entry.dailyTotal.toString(),
+                    style = MaterialTheme.typography.titleMedium.copy(
+                        fontWeight = FontWeight.Bold,
+                        fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
+                    ),
+                    color = gayatriColor
+                )
+                Text(
+                    text = "TOTAL",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun CustomHistoryItemRow(
+    entry: CustomPracticeEntry,
+    practice: CustomPractice,
+    onClick: () -> Unit
+) {
+    val color = getMantraColor(practice.themeColor)
+    val displayDate = remember(entry.date) {
+        try {
+            val date = SimpleDateFormat("yyyy-MM-dd", Locale.US).parse(entry.date)
+            SimpleDateFormat("MMMM dd, yyyy", Locale.getDefault()).format(date ?: Date())
+        } catch (e: Exception) {
+            entry.date
+        }
+    }
+
+    val hasSandhyaCounts = entry.morningCount > 0 || entry.afternoonCount > 0 || entry.eveningCount > 0
+    val displaySum = if (hasSandhyaCounts) {
+        entry.morningCount + entry.afternoonCount + entry.eveningCount + entry.morningPunasCount + entry.afternoonPunasCount + entry.eveningPunasCount
+    } else {
+        entry.count
+    }
+
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .testTag("custom_history_item_${practice.id}_${entry.date}"),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surface
+        ),
+        border = androidx.compose.foundation.BorderStroke(1.dp, color.copy(alpha = 0.3f)),
+        shape = RoundedCornerShape(16.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        modifier = Modifier
+                            .size(10.dp)
+                            .background(color, CircleShape)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = practice.name,
+                        style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold),
+                        color = color
+                    )
+                }
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = displayDate,
+                    style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Bold),
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                if (hasSandhyaCounts) {
+                    Spacer(modifier = Modifier.height(6.dp))
+                    @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+                    androidx.compose.foundation.layout.FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Text(
+                            text = "Morn: ${entry.morningCount}" + if (entry.morningPunasCount > 0) "+${entry.morningPunasCount}" else "",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                        )
+                        Text(
+                            text = "Noon: ${entry.afternoonCount}" + if (entry.afternoonPunasCount > 0) "+${entry.afternoonPunasCount}" else "",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                        )
+                        Text(
+                            text = "Eve: ${entry.eveningCount}" + if (entry.eveningPunasCount > 0) "+${entry.eveningPunasCount}" else "",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                        )
+                    }
+                }
+
+                PlaceBadge(
+                    placeName = entry.placeName,
+                    placeCategory = entry.placeCategory,
+                    latitude = entry.latitude,
+                    longitude = entry.longitude,
+                    modifier = Modifier.padding(top = 8.dp)
+                )
+            }
+            
+            Column(horizontalAlignment = Alignment.End) {
+                Text(
+                    text = displaySum.toString(),
+                    style = MaterialTheme.typography.titleMedium.copy(
+                        fontWeight = FontWeight.Bold,
+                        fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
+                    ),
+                    color = color
+                )
+                Text(
+                    text = "TOTAL",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun EmptyHistoryState() {
+    Column(
+        modifier = Modifier.fillMaxSize().padding(top = 40.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        Icon(
+            Icons.Default.History,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.3f),
+            modifier = Modifier.size(64.dp)
+        )
+        Spacer(modifier = Modifier.height(16.dp))
+        Text(
+            text = "No recorded entries found",
+            style = MaterialTheme.typography.titleMedium,
+            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f)
+        )
+        Text(
+            text = "Begin chanting on the 'Today' tab to start logging.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.4f)
+        )
+    }
+}
+
+@Composable
+fun CombinedHistoryBanner(
+    combinedLifetimeTotal: Long,
+    isSelected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Card(
+        modifier = modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .testTag("combined_history_banner_tile"),
+        colors = CardDefaults.cardColors(
+            containerColor = if (isSelected) MaterialTheme.colorScheme.primary.copy(alpha = 0.12f) else MaterialTheme.colorScheme.surface
+        ),
+        border = BorderStroke(
+            width = if (isSelected) 2.dp else 1.dp,
+            color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)
+        ),
+        shape = RoundedCornerShape(16.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = if (isSelected) 3.dp else 1.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                Box(
+                    modifier = Modifier
+                        .size(40.dp)
+                        .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.1f), CircleShape),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.AllInclusive,
+                        contentDescription = "Combined Total Icon",
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
+                Spacer(modifier = Modifier.width(12.dp))
+                Column {
+                    Text(
+                        text = "COMBINED GRAND TOTAL",
+                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold, letterSpacing = 0.5.sp),
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                    )
+                    Text(
+                        text = "Unified feed of all japas",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f)
+                    )
+                }
+            }
+            AutoResizedText(
+                text = String.format(Locale.US, "%,d", combinedLifetimeTotal),
+                style = MaterialTheme.typography.titleLarge.copy(
+                    fontWeight = FontWeight.Bold,
+                    fontFamily = FontFamily.Monospace
+                ),
+                color = MaterialTheme.colorScheme.primary,
+                maxLines = 1,
+                minFontSize = 11.sp
+            )
+        }
+    }
+}
+
+@Composable
+fun MantraSelectionGrid(
+    selectedMantraId: Long?,
+    gayatriName: String,
+    gayatriColor: Color,
+    gayatriLifetimeTotal: Long,
+    allPractices: List<CustomPractice>,
+    practiceTotals: Map<Long, Int>,
+    onSelectMantra: (Long) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Column(modifier = modifier.fillMaxWidth()) {
+        Text(
+            text = "MANTRAS",
+            style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold, letterSpacing = 0.8.sp),
+            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f)
+        )
+        Spacer(modifier = Modifier.height(6.dp))
+
+        val allBlocks = mutableListOf<@Composable () -> Unit>()
+
+        // Gayatri block
+        val isGayatriSelected = selectedMantraId == GAYATRI_PRACTICE_ID
+        allBlocks.add {
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = 86.dp)
+                    .clickable { onSelectMantra(GAYATRI_PRACTICE_ID) }
+                    .testTag("block_gayatri_japa"),
+                colors = CardDefaults.cardColors(
+                    containerColor = if (isGayatriSelected) gayatriColor.copy(alpha = 0.15f) else MaterialTheme.colorScheme.surface
+                ),
+                border = BorderStroke(
+                    width = if (isGayatriSelected) 2.dp else 1.dp,
+                    color = if (isGayatriSelected) gayatriColor else MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)
+                ),
+                shape = RoundedCornerShape(12.dp),
+                elevation = CardDefaults.cardElevation(defaultElevation = if (isGayatriSelected) 2.dp else 0.dp)
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    Text(
+                        text = gayatriName,
+                        style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold),
+                        color = if (isGayatriSelected) gayatriColor else MaterialTheme.colorScheme.onSurface,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    AutoResizedText(
+                        text = String.format(Locale.US, "%,d", gayatriLifetimeTotal),
+                        style = MaterialTheme.typography.titleMedium.copy(
+                            fontWeight = FontWeight.Bold,
+                            fontFamily = FontFamily.Monospace
+                        ),
+                        color = gayatriColor,
+                        maxLines = 1,
+                        minFontSize = 10.sp
+                    )
+                }
+            }
+        }
+
+        // Custom blocks
+        allPractices.filter { it.id != GAYATRI_PRACTICE_ID }.forEach { practice ->
+            val isSelected = selectedMantraId == practice.id
+            val color = getMantraColor(practice.themeColor)
+            val total = practice.initialLifetimeCount + (practiceTotals[practice.id] ?: 0)
+            allBlocks.add {
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = 86.dp)
+                    .clickable { onSelectMantra(practice.id) }
+                        .testTag("block_mantra_${practice.id}"),
+                    colors = CardDefaults.cardColors(
+                        containerColor = if (isSelected) color.copy(alpha = 0.15f) else MaterialTheme.colorScheme.surface
+                    ),
+                    border = BorderStroke(
+                        width = if (isSelected) 2.dp else 1.dp,
+                        color = if (isSelected) color else MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)
+                    ),
+                    shape = RoundedCornerShape(12.dp),
+                    elevation = CardDefaults.cardElevation(defaultElevation = if (isSelected) 2.dp else 0.dp)
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(12.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Text(
+                            text = practice.name,
+                            style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold),
+                            color = if (isSelected) color else MaterialTheme.colorScheme.onSurface,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        AutoResizedText(
+                            text = String.format(Locale.US, "%,d", total),
+                            style = MaterialTheme.typography.titleMedium.copy(
+                                fontWeight = FontWeight.Bold,
+                                fontFamily = FontFamily.Monospace
+                            ),
+                            color = color,
+                            maxLines = 1,
+                            minFontSize = 10.sp
+                        )
+                    }
+                }
+            }
+        }
+
+        // Render in pairs
+        Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            for (i in allBlocks.indices step 2) {
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Box(modifier = Modifier.weight(1f)) {
+                        allBlocks[i]()
+                    }
+                    if (i + 1 < allBlocks.size) {
+                        Box(modifier = Modifier.weight(1f)) {
+                            allBlocks[i + 1]()
+                        }
+                    } else {
+                        Box(modifier = Modifier.weight(1f)) {}
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun PracticeLocationsBreakdownSection(
+    locationStats: Pair<Map<String, Long>, Long>,
+    selectedPlaceCategoryFilter: String?,
+    onCategoryClick: (String) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    if (locationStats.first.isEmpty()) return
+
+    Card(
+        modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f)),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Place,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Text(
+                        text = "Practice Locations Breakdown",
+                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
+                    )
+                }
+                Text(
+                    text = "${locationStats.first.size} Categories",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                )
+            }
+
+            locationStats.first.entries.sortedByDescending { it.value }.forEach { (catId, count) ->
+                val category = PlaceCategory.fromId(catId)
+                val percentage = if (locationStats.second > 0) (count * 100f / locationStats.second) else 0f
+
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { onCategoryClick(category.id) },
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(10.dp)
+                                    .background(category.primaryColor, CircleShape)
+                            )
+                            Text(
+                                text = category.displayName,
+                                style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.SemiBold)
+                            )
+                        }
+                        Text(
+                            text = String.format(Locale.US, "%,d chants (%.1f%%)", count, percentage),
+                            style = MaterialTheme.typography.bodySmall.copy(
+                                fontFamily = FontFamily.Monospace,
+                                fontWeight = FontWeight.Bold
+                            ),
+                            color = category.primaryColor
+                        )
+                    }
+                    LinearProgressIndicator(
+                        progress = { (percentage / 100f).coerceIn(0f, 1f) },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(6.dp)
+                            .clip(RoundedCornerShape(3.dp)),
+                        color = category.primaryColor,
+                        trackColor = category.containerColor
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun PlaceCategoryFilterRow(
+    selectedPlaceCategoryFilter: String?,
+    onSelectFilter: (String?) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text(
+            text = "FILTER BY PLACE CATEGORY",
+            style = MaterialTheme.typography.labelMedium.copy(
+                fontWeight = FontWeight.Bold,
+                letterSpacing = 0.8.sp
+            ),
+            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f),
+            modifier = Modifier.padding(top = 10.dp)
+        )
+
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            FilterChip(
+                selected = selectedPlaceCategoryFilter == null,
+                onClick = { onSelectFilter(null) },
+                label = {
+                    Text(
+                        "All Places",
+                        fontWeight = if (selectedPlaceCategoryFilter == null) FontWeight.Bold else FontWeight.Normal
+                    )
+                }
+            )
+
+            PlaceCategory.entries.forEach { category ->
+                val isSelected = selectedPlaceCategoryFilter.equals(category.id, ignoreCase = true)
+                FilterChip(
+                    selected = isSelected,
+                    onClick = {
+                        onSelectFilter(if (isSelected) null else category.id)
+                    },
+                    label = {
+                        Text(
+                            text = category.displayName,
+                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                            color = if (isSelected) category.primaryColor else MaterialTheme.colorScheme.onSurface
+                        )
+                    },
+                    leadingIcon = {
+                        Box(
+                            modifier = Modifier
+                                .size(8.dp)
+                                .background(category.primaryColor, CircleShape)
+                        )
+                    },
+                    colors = FilterChipDefaults.filterChipColors(
+                        selectedContainerColor = category.containerColor,
+                        selectedLabelColor = category.contentColor
+                    ),
+                    border = FilterChipDefaults.filterChipBorder(
+                        enabled = true,
+                        selected = isSelected,
+                        borderColor = if (isSelected) category.primaryColor else MaterialTheme.colorScheme.outline.copy(alpha = 0.3f),
+                        borderWidth = if (isSelected) 2.dp else 1.dp
+                    )
+                )
+            }
+        }
+    }
+}
+
+
