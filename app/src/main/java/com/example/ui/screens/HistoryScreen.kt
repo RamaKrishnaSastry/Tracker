@@ -261,117 +261,15 @@ fun HistoryScreen(
         catMap to totalChants
     }
 
-    Scaffold(
-        contentWindowInsets = WindowInsets(0, 0, 0, 0),
-        modifier = modifier.fillMaxSize(),
-        bottomBar = {
-            AnimatedVisibility(
-                visible = isBulkEditMode,
-                enter = slideInVertically(initialOffsetY = { it }) + fadeIn(),
-                exit = slideOutVertically(targetOffsetY = { it }) + fadeOut()
-            ) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .navigationBarsPadding()
-                        .padding(start = 10.dp, end = 10.dp, top = 2.dp, bottom = 2.dp)
-                ) {
-                    Surface(
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = MaterialTheme.shapes.medium,
-                        tonalElevation = 4.dp,
-                        shadowElevation = 8.dp,
-                        color = MaterialTheme.colorScheme.surfaceColorAtElevation(3.dp)
-                    ) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 8.dp, vertical = 4.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(2.dp)
-                            ) {
-                                IconButton(
-                                    onClick = {
-                                        isBulkEditMode = false
-                                        selectedBulkDates.value = emptySet()
-                                    },
-                                    modifier = Modifier.size(36.dp)
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.Close,
-                                        contentDescription = "Exit Selection Mode",
-                                        tint = MaterialTheme.colorScheme.onSurface,
-                                        modifier = Modifier.size(18.dp)
-                                    )
-                                }
-
-                                Text(
-                                    text = if (selectedBulkDates.value.isEmpty()) "Select dates" else "${selectedBulkDates.value.size} selected",
-                                    style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
-                                    color = MaterialTheme.colorScheme.onSurface
-                                )
-
-                                IconButton(
-                                    onClick = {
-                                        val calTemp = Calendar.getInstance().apply {
-                                            time = currentCalendar.time
-                                            set(Calendar.DAY_OF_MONTH, 1)
-                                        }
-                                        val maxDay = calTemp.getActualMaximum(Calendar.DAY_OF_MONTH)
-                                        val cYear = currentCalendar.get(Calendar.YEAR)
-                                        val cMonth = currentCalendar.get(Calendar.MONTH) + 1
-                                        val monthDates = (1..maxDay).map { d ->
-                                            String.format(Locale.US, "%04d-%02d-%02d", cYear, cMonth, d)
-                                        }.toSet()
-                                        selectedBulkDates.value = selectedBulkDates.value + monthDates
-                                        isBulkEditMode = true
-                                    },
-                                    modifier = Modifier.size(36.dp)
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.SelectAll,
-                                        contentDescription = "Select All Month",
-                                        tint = MaterialTheme.colorScheme.primary,
-                                        modifier = Modifier.size(18.dp)
-                                    )
-                                }
-                            }
-
-                            Button(
-                                onClick = { showBulkLocationPicker = true },
-                                enabled = selectedBulkDates.value.isNotEmpty(),
-                                modifier = Modifier.height(36.dp),
-                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
-                                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
-                                shape = MaterialTheme.shapes.small
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Place,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(16.dp)
-                                )
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text(
-                                    text = "Edit Location",
-                                    style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold)
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    ) { innerPadding ->
+    Box(
+        modifier = modifier.fillMaxSize()
+    ) {
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(bottom = innerPadding.calculateBottomPadding())
                 .statusBarsPadding()
                 .padding(horizontal = 16.dp),
+            contentPadding = PaddingValues(bottom = if (isBulkEditMode) 68.dp else 16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             item {
@@ -643,7 +541,105 @@ fun HistoryScreen(
 
             item { Spacer(modifier = Modifier.height(24.dp)) }
         }
+
+        // Floating Action Bar overlay (floating directly with transparent background)
+        AnimatedVisibility(
+            visible = isBulkEditMode,
+            enter = slideInVertically(initialOffsetY = { it }) + fadeIn(),
+            exit = slideOutVertically(targetOffsetY = { it }) + fadeOut(),
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(bottom = 12.dp, start = 16.dp, end = 16.dp)
+        ) {
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                shape = MaterialTheme.shapes.medium,
+                tonalElevation = 4.dp,
+                shadowElevation = 8.dp,
+                color = MaterialTheme.colorScheme.surfaceColorAtElevation(3.dp)
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 8.dp, vertical = 4.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(2.dp)
+                    ) {
+                        IconButton(
+                            onClick = {
+                                isBulkEditMode = false
+                                selectedBulkDates.value = emptySet()
+                            },
+                            modifier = Modifier.size(36.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Close,
+                                contentDescription = "Exit Selection Mode",
+                                tint = MaterialTheme.colorScheme.onSurface,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+
+                        Text(
+                            text = if (selectedBulkDates.value.isEmpty()) "Select dates" else "${selectedBulkDates.value.size} selected",
+                            style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+
+                        IconButton(
+                            onClick = {
+                                val calTemp = Calendar.getInstance().apply {
+                                    time = currentCalendar.time
+                                    set(Calendar.DAY_OF_MONTH, 1)
+                                }
+                                val maxDay = calTemp.getActualMaximum(Calendar.DAY_OF_MONTH)
+                                val cYear = currentCalendar.get(Calendar.YEAR)
+                                val cMonth = currentCalendar.get(Calendar.MONTH) + 1
+                                val monthDates = (1..maxDay).map { d ->
+                                    String.format(Locale.US, "%04d-%02d-%02d", cYear, cMonth, d)
+                                }.toSet()
+                                selectedBulkDates.value = selectedBulkDates.value + monthDates
+                                isBulkEditMode = true
+                            },
+                            modifier = Modifier.size(36.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.SelectAll,
+                                contentDescription = "Select All Month",
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+                    }
+
+                    Button(
+                        onClick = { showBulkLocationPicker = true },
+                        enabled = selectedBulkDates.value.isNotEmpty(),
+                        modifier = Modifier.height(36.dp),
+                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
+                        shape = MaterialTheme.shapes.small
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Place,
+                            contentDescription = null,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = "Edit Location",
+                            style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold)
+                        )
+                    }
+                }
+            }
+        }
     }
+
 
     // Gayatri Model Edit Dialog
     selectedEntryToEdit?.let { entry ->
