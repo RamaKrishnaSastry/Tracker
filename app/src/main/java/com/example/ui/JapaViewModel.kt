@@ -232,6 +232,7 @@ class JapaViewModel(application: Application) : AndroidViewModel(application) {
 
     init {
         ensureTodayEntryExists()
+        reminderManager.scheduleAlarms()
         
         // Migration/cleanup check for legacy installed users where active/default was default -1L
         val rawActiveId = prefs.rawGetLong("active_practice_id", NO_PRACTICE_SELECTED_ID)
