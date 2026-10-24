@@ -274,19 +274,19 @@ fun HistoryScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .navigationBarsPadding()
-                        .padding(horizontal = 16.dp, vertical = 12.dp)
+                        .padding(start = 10.dp, end = 10.dp, top = 2.dp, bottom = 2.dp)
                 ) {
                     Surface(
                         modifier = Modifier.fillMaxWidth(),
-                        shape = MaterialTheme.shapes.large,
-                        tonalElevation = 8.dp,
-                        shadowElevation = 12.dp,
+                        shape = MaterialTheme.shapes.medium,
+                        tonalElevation = 4.dp,
+                        shadowElevation = 8.dp,
                         color = MaterialTheme.colorScheme.surfaceColorAtElevation(3.dp)
                     ) {
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(horizontal = 12.dp, vertical = 8.dp),
+                                .padding(horizontal = 8.dp, vertical = 4.dp),
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
@@ -298,18 +298,20 @@ fun HistoryScreen(
                                     onClick = {
                                         isBulkEditMode = false
                                         selectedBulkDates.value = emptySet()
-                                    }
+                                    },
+                                    modifier = Modifier.size(36.dp)
                                 ) {
                                     Icon(
                                         imageVector = Icons.Default.Close,
                                         contentDescription = "Exit Selection Mode",
-                                        tint = MaterialTheme.colorScheme.onSurface
+                                        tint = MaterialTheme.colorScheme.onSurface,
+                                        modifier = Modifier.size(18.dp)
                                     )
                                 }
 
                                 Text(
                                     text = if (selectedBulkDates.value.isEmpty()) "Select dates" else "${selectedBulkDates.value.size} selected",
-                                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                                    style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
                                     color = MaterialTheme.colorScheme.onSurface
                                 )
 
@@ -327,12 +329,14 @@ fun HistoryScreen(
                                         }.toSet()
                                         selectedBulkDates.value = selectedBulkDates.value + monthDates
                                         isBulkEditMode = true
-                                    }
+                                    },
+                                    modifier = Modifier.size(36.dp)
                                 ) {
                                     Icon(
                                         imageVector = Icons.Default.SelectAll,
                                         contentDescription = "Select All Month",
-                                        tint = MaterialTheme.colorScheme.primary
+                                        tint = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.size(18.dp)
                                     )
                                 }
                             }
@@ -340,19 +344,20 @@ fun HistoryScreen(
                             Button(
                                 onClick = { showBulkLocationPicker = true },
                                 enabled = selectedBulkDates.value.isNotEmpty(),
-                                modifier = Modifier.heightIn(min = 48.dp),
+                                modifier = Modifier.height(36.dp),
+                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
                                 colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
                                 shape = MaterialTheme.shapes.small
                             ) {
                                 Icon(
                                     imageVector = Icons.Default.Place,
                                     contentDescription = null,
-                                    modifier = Modifier.size(18.dp)
+                                    modifier = Modifier.size(16.dp)
                                 )
-                                Spacer(modifier = Modifier.width(6.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
                                 Text(
                                     text = "Edit Location",
-                                    style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold)
+                                    style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold)
                                 )
                             }
                         }
