@@ -23,6 +23,6 @@ data class CustomPractice(
     val isMorningEnabled: Boolean = true,
     val isMiddayEnabled: Boolean = true,
     val isEveningEnabled: Boolean = true,
-    val isPunascharanaEnabled: Boolean = true,
+    val isPunascharanaEnabled: Boolean = false,
     val incrementValue: Int = 1
 )

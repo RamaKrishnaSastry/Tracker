@@ -110,7 +110,7 @@ class PreferencesManager(context: Context) {
     private val _isPunascharanaEnabled = MutableStateFlow(isPunascharanaEnabled())
     val isPunascharanaEnabled: StateFlow<Boolean> = _isPunascharanaEnabled.asStateFlow()
 
-    fun isPunascharanaEnabled(): Boolean = prefs.getBoolean("is_punascharana_enabled", true)
+    fun isPunascharanaEnabled(): Boolean = prefs.getBoolean("is_punascharana_enabled", false)
     fun setPunascharanaEnabled(enabled: Boolean) {
         prefs.edit().putBoolean("is_punascharana_enabled", enabled).apply()
         updateSettingsTimestamp()
@@ -183,7 +183,7 @@ class PreferencesManager(context: Context) {
     private val _weeklySankalpaTarget = MutableStateFlow(getWeeklySankalpaTarget())
     val weeklySankalpaTarget: StateFlow<Int> = _weeklySankalpaTarget.asStateFlow()
 
-    fun getWeeklySankalpaTarget(): Int = prefs.getInt("weekly_sankalpa_target", 1008)
+    fun getWeeklySankalpaTarget(): Int = prefs.getInt("weekly_sankalpa_target", 0)
     fun setWeeklySankalpaTarget(target: Int) {
         prefs.edit().putInt("weekly_sankalpa_target", target).apply()
         updateSettingsTimestamp()

@@ -360,7 +360,7 @@ class JapaRepository(
                             prefs.setThemeMode(syncedThemeMode)
                             hasCloudNewerChanges = true
                         }
-                        val cloudPunas = cloudPayload.settings.isPunascharanaEnabled ?: true
+                        val cloudPunas = cloudPayload.settings.isPunascharanaEnabled ?: false
                         if (cloudPunas != prefs.isPunascharanaEnabled()) {
                             syncedPunasEnabled = cloudPunas
                             prefs.setPunascharanaEnabled(syncedPunasEnabled)
@@ -378,7 +378,7 @@ class JapaRepository(
                             prefs.setUniversalColor(syncedUniversalColor)
                             hasCloudNewerChanges = true
                         }
-                        val cloudWeeklyTarget = cloudPayload.settings.weeklySankalpaTarget ?: 1008
+                        val cloudWeeklyTarget = cloudPayload.settings.weeklySankalpaTarget ?: 0
                         if (cloudWeeklyTarget != prefs.getWeeklySankalpaTarget()) {
                             prefs.setWeeklySankalpaTarget(cloudWeeklyTarget)
                             hasCloudNewerChanges = true

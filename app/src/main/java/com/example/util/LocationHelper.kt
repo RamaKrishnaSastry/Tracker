@@ -72,6 +72,11 @@ object LocationHelper {
         return bestLocation
     }
 
+    /**
+     * Format latitude/longitude into standard N/S/E/W degrees.
+     * Note: Uses Locale.US explicitly to ensure '.' is consistently used as the decimal separator
+     * for geographic GPS coordinates regardless of device system locale.
+     */
     fun formatCoordinates(lat: Double, lon: Double): String {
         val latDir = if (lat >= 0) "N" else "S"
         val lonDir = if (lon >= 0) "E" else "W"

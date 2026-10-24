@@ -12,12 +12,12 @@ data class SyncPayload(
 
 data class SyncSettings(
     val themeMode: String = "dark",
-    val isPunascharanaEnabled: Boolean? = true,
+    val isPunascharanaEnabled: Boolean? = false,
     val gayatriColor: String? = "violet",
     val universalColor: String? = "royal",
     val updatedAt: String? = "",
     val initialLifetimeCountUpdatedAt: String? = "",
-    val weeklySankalpaTarget: Int? = 1008
+    val weeklySankalpaTarget: Int? = 0
 )
 
 data class SyncEntry(
