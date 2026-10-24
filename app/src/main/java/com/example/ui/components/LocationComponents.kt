@@ -37,7 +37,7 @@ import com.example.util.LocationHelper
 import kotlinx.coroutines.launch
 
 /**
- * Beautiful, color-coded badge displaying place name and category
+ * Color-coded badge displaying place name and category
  */
 @Composable
 fun PlaceBadge(
@@ -102,8 +102,197 @@ fun PlaceBadge(
 }
 
 /**
- * Location Selection Dialog with GPS auto-detection, geocoding, smart category selection,
- * and quick presets for spiritual practice.
+ * Sub-composable: GPS Detection Action Card
+ */
+@Composable
+fun GpsDetectionCard(
+    isDetectingLocation: Boolean,
+    detectionStatusMessage: String?,
+    formattedCoordinates: String,
+    onDetectClick: () -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)
+        ),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "Automatic GPS Detection",
+                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold)
+                    )
+                    Text(
+                        text = "Detects your current temple, ashram, or location name",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                    )
+                }
+
+                FilledTonalButton(
+                    onClick = onDetectClick,
+                    enabled = !isDetectingLocation,
+                    modifier = Modifier.testTag("detect_gps_button")
+                ) {
+                    if (isDetectingLocation) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(16.dp),
+                            strokeWidth = 2.dp
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Detecting...", fontSize = 12.sp)
+                    } else {
+                        Icon(
+                            imageVector = Icons.Outlined.MyLocation,
+                            contentDescription = "Detect GPS",
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Detect GPS", fontSize = 12.sp)
+                    }
+                }
+            }
+
+            if (!detectionStatusMessage.isNullOrBlank()) {
+                Text(
+                    text = detectionStatusMessage,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.primary
+                )
+            }
+
+            if (formattedCoordinates.isNotBlank()) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Outlined.Explore,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.secondary,
+                        modifier = Modifier.size(14.dp)
+                    )
+                    Text(
+                        text = formattedCoordinates,
+                        style = MaterialTheme.typography.labelSmall.copy(fontFamily = FontFamily.Monospace),
+                        color = MaterialTheme.colorScheme.secondary
+                    )
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Sub-composable: Quick Place Name Suggestions
+ */
+@Composable
+fun QuickSuggestionsRow(
+    onSelectSuggestion: (name: String, category: PlaceCategory) -> Unit
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Text(
+            text = "Quick Suggestions",
+            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+        )
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            val suggestions = listOf(
+                "Home Shrine" to PlaceCategory.HOME,
+                "Local Temple" to PlaceCategory.TEMPLE,
+                "Ashram" to PlaceCategory.ASHRAM,
+                "Ganga Ghat" to PlaceCategory.NATURE,
+                "Nature / Park" to PlaceCategory.NATURE,
+                "Travel / Commute" to PlaceCategory.TRAVEL,
+                "Pilgrimage Site" to PlaceCategory.PILGRIMAGE
+            )
+            suggestions.forEach { (name, cat) ->
+                SuggestionChip(
+                    onClick = { onSelectSuggestion(name, cat) },
+                    label = { Text(name, fontSize = 12.sp) }
+                )
+            }
+        }
+    }
+}
+
+/**
+ * Sub-composable: Category Selector Row
+ */
+@Composable
+fun CategorySelectorRow(
+    selectedCategory: PlaceCategory,
+    onCategorySelected: (PlaceCategory) -> Unit
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Text(
+            text = "Category (Color Code)",
+            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+        )
+
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            PlaceCategory.entries.forEach { category ->
+                val isSelected = selectedCategory == category
+                FilterChip(
+                    selected = isSelected,
+                    onClick = { onCategorySelected(category) },
+                    label = {
+                        Text(
+                            text = category.displayName,
+                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                            color = if (isSelected) category.primaryColor else MaterialTheme.colorScheme.onSurface
+                        )
+                    },
+                    leadingIcon = {
+                        Box(
+                            modifier = Modifier
+                                .size(10.dp)
+                                .clip(CircleShape)
+                                .background(category.primaryColor)
+                        )
+                    },
+                    colors = FilterChipDefaults.filterChipColors(
+                        selectedContainerColor = category.containerColor,
+                        selectedLabelColor = category.contentColor
+                    ),
+                    border = FilterChipDefaults.filterChipBorder(
+                        enabled = true,
+                        selected = isSelected,
+                        borderColor = if (isSelected) category.primaryColor else MaterialTheme.colorScheme.outline.copy(alpha = 0.3f),
+                        borderWidth = if (isSelected) 2.dp else 1.dp
+                    )
+                )
+            }
+        }
+    }
+}
+
+/**
+ * Location Selection Dialog with sub-component architecture
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -206,108 +395,28 @@ fun LocationPickerDialog(
                     .verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(14.dp)
             ) {
-                // GPS Detect Action Card
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp),
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)
-                    ),
-                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
-                ) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(12.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    text = "Automatic GPS Detection",
-                                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold)
+                GpsDetectionCard(
+                    isDetectingLocation = isDetectingLocation,
+                    detectionStatusMessage = detectionStatusMessage,
+                    formattedCoordinates = formattedCoordinates,
+                    onDetectClick = {
+                        if (LocationHelper.hasLocationPermission(context)) {
+                            detectGpsLocation()
+                        } else {
+                            permissionLauncher.launch(
+                                arrayOf(
+                                    Manifest.permission.ACCESS_FINE_LOCATION,
+                                    Manifest.permission.ACCESS_COARSE_LOCATION
                                 )
-                                Text(
-                                    text = "Detects your current temple, ashram, or location name",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
-                                )
-                            }
-
-                            FilledTonalButton(
-                                onClick = {
-                                    if (LocationHelper.hasLocationPermission(context)) {
-                                        detectGpsLocation()
-                                    } else {
-                                        permissionLauncher.launch(
-                                            arrayOf(
-                                                Manifest.permission.ACCESS_FINE_LOCATION,
-                                                Manifest.permission.ACCESS_COARSE_LOCATION
-                                            )
-                                        )
-                                    }
-                                },
-                                enabled = !isDetectingLocation,
-                                modifier = Modifier.testTag("detect_gps_button")
-                            ) {
-                                if (isDetectingLocation) {
-                                    CircularProgressIndicator(
-                                        modifier = Modifier.size(16.dp),
-                                        strokeWidth = 2.dp
-                                    )
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    Text("Detecting...", fontSize = 12.sp)
-                                } else {
-                                    Icon(
-                                        imageVector = Icons.Outlined.MyLocation,
-                                        contentDescription = "Detect GPS",
-                                        modifier = Modifier.size(16.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    Text("Detect GPS", fontSize = 12.sp)
-                                }
-                            }
-                        }
-
-                        if (!detectionStatusMessage.isNullOrBlank()) {
-                            Text(
-                                text = detectionStatusMessage ?: "",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.primary
                             )
                         }
-
-                        if (formattedCoordinates.isNotBlank()) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(4.dp)
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Outlined.Explore,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.secondary,
-                                    modifier = Modifier.size(14.dp)
-                                )
-                                Text(
-                                    text = formattedCoordinates,
-                                    style = MaterialTheme.typography.labelSmall.copy(fontFamily = FontFamily.Monospace),
-                                    color = MaterialTheme.colorScheme.secondary
-                                )
-                            }
-                        }
                     }
-                }
+                )
 
-                // Place Name TextField
                 OutlinedTextField(
                     value = placeName,
                     onValueChange = {
                         placeName = it
-                        // When user manually types keywords like "Temple" or "Ghat", auto-suggest category
                         val detected = PlaceCategory.detectCategory(it)
                         if (it.isNotBlank() && detected != PlaceCategory.HOME) {
                             selectedCategory = detected
@@ -335,90 +444,18 @@ fun LocationPickerDialog(
                         .testTag("place_name_input")
                 )
 
-                // Quick Place Name Suggestions
-                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text(
-                        text = "Quick Suggestions",
-                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
-                    )
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .horizontalScroll(rememberScrollState()),
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        val suggestions = listOf(
-                            "Home Shrine" to PlaceCategory.HOME,
-                            "Local Temple" to PlaceCategory.TEMPLE,
-                            "Ashram" to PlaceCategory.ASHRAM,
-                            "Ganga Ghat" to PlaceCategory.NATURE,
-                            "Nature / Park" to PlaceCategory.NATURE,
-                            "Travel / Commute" to PlaceCategory.TRAVEL,
-                            "Pilgrimage Site" to PlaceCategory.PILGRIMAGE
-                        )
-                        suggestions.forEach { (name, cat) ->
-                            SuggestionChip(
-                                onClick = {
-                                    placeName = name
-                                    selectedCategory = cat
-                                },
-                                label = { Text(name, fontSize = 12.sp) }
-                            )
-                        }
+                QuickSuggestionsRow(
+                    onSelectSuggestion = { name, cat ->
+                        placeName = name
+                        selectedCategory = cat
                     }
-                }
+                )
 
-                // Spiritual Category Selection
-                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Text(
-                        text = "Category (Color Code)",
-                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
-                    )
+                CategorySelectorRow(
+                    selectedCategory = selectedCategory,
+                    onCategorySelected = { selectedCategory = it }
+                )
 
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .horizontalScroll(rememberScrollState()),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        PlaceCategory.entries.forEach { category ->
-                            val isSelected = selectedCategory == category
-                            FilterChip(
-                                selected = isSelected,
-                                onClick = { selectedCategory = category },
-                                label = {
-                                    Text(
-                                        text = category.displayName,
-                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                                        color = if (isSelected) category.primaryColor else MaterialTheme.colorScheme.onSurface
-                                    )
-                                },
-                                leadingIcon = {
-                                    Box(
-                                        modifier = Modifier
-                                            .size(10.dp)
-                                            .clip(CircleShape)
-                                            .background(category.primaryColor)
-                                    )
-                                },
-                                colors = FilterChipDefaults.filterChipColors(
-                                    selectedContainerColor = category.containerColor,
-                                    selectedLabelColor = category.contentColor
-                                ),
-                                border = FilterChipDefaults.filterChipBorder(
-                                    enabled = true,
-                                    selected = isSelected,
-                                    borderColor = if (isSelected) category.primaryColor else MaterialTheme.colorScheme.outline.copy(alpha = 0.3f),
-                                    borderWidth = if (isSelected) 2.dp else 1.dp
-                                )
-                            )
-                        }
-                    }
-                }
-
-                // Preview Badge
                 Column(
                     modifier = Modifier.fillMaxWidth(),
                     verticalArrangement = Arrangement.spacedBy(4.dp)

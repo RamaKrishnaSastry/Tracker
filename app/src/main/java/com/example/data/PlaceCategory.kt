@@ -82,12 +82,40 @@ enum class PlaceCategory(
         }
 
         fun detectCategory(text: String): PlaceCategory {
+            if (text.isBlank()) return HOME
             val lower = text.lowercase()
+
+            // 1. Check for explicit primary category indicators (highest priority)
+            val explicitTempleKeywords = listOf("temple", "mandir", "devalaya", "kovil", "gopuram", "sanctum", "tirtha")
+            val explicitAshramKeywords = listOf("ashram", "matha", "hermitage", "monastery", "sangha", "peeth")
+            val explicitNatureKeywords = listOf("river", "ganga", "ghat", "lake", "waterfall", "forest", "mountain")
+            val explicitTravelKeywords = listOf("airport", "flight", "railway", "train station", "metro", "bus stand", "terminal")
+            val explicitPilgrimageKeywords = listOf("pilgrimage", "yatra", "char dham", "kashi", "haridwar", "rishikesh", "ayodhya", "varanasi", "tirupati", "puri", "kedarnath", "badrinath")
+
+            if (explicitTempleKeywords.any { lower.contains(it) }) return TEMPLE
+            if (explicitAshramKeywords.any { lower.contains(it) }) return ASHRAM
+            if (explicitNatureKeywords.any { lower.contains(it) }) return NATURE
+            if (explicitTravelKeywords.any { lower.contains(it) }) return TRAVEL
+            if (explicitPilgrimageKeywords.any { lower.contains(it) }) return PILGRIMAGE
+
+            // 2. Check for locality/transit road suffixes (e.g., "Krishna Nagar Road", "Rama Layout")
+            val roadLocalitySuffixes = listOf("road", "rd", "street", "st", "nagar", "colony", "layout", "pally", "marg", "chowk", "cross", "stage", "extension", "drive", "avenue", "lane", "path")
+            val hasLocalitySuffix = roadLocalitySuffixes.any { suffix ->
+                lower.split(" ", "-", ",").contains(suffix) || lower.endsWith(" $suffix")
+            }
+
+            if (hasLocalitySuffix) {
+                // If it's a street or neighborhood address without explicit temple/ashram words, default to Travel/Commute or Home
+                return if (lower.contains("station") || lower.contains("transit") || lower.contains("highway") || lower.contains("road") || lower.contains("expressway")) TRAVEL else HOME
+            }
+
+            // 3. Fallback matching across category default keywords
             for (category in entries) {
                 if (category.defaultKeywords.any { keyword -> lower.contains(keyword) }) {
                     return category
                 }
             }
+
             return HOME
         }
     }

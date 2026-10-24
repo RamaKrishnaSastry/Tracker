@@ -590,6 +590,7 @@ class JapaRepository(
 
                 // If local has newer, upload merged changes back up to the cloud
                 if (hasLocalNewerChanges || cloudPayload == null) {
+                    val syncLocationAllowed = prefs.isSyncLocationEnabled()
                     val entriesMap = mergedEntries.mapValues { (_, entry) ->
                         SyncEntry(
                             morning = entry.pratahSandhyaCount,
@@ -601,8 +602,8 @@ class JapaRepository(
                             updatedAt = entry.updatedAt,
                             placeName = entry.placeName,
                             placeCategory = entry.placeCategory,
-                            latitude = entry.latitude,
-                            longitude = entry.longitude
+                            latitude = if (syncLocationAllowed) entry.latitude else null,
+                            longitude = if (syncLocationAllowed) entry.longitude else null
                         )
                     }
                     
@@ -643,8 +644,8 @@ class JapaRepository(
                             updatedAt = ce.updatedAt,
                             placeName = ce.placeName,
                             placeCategory = ce.placeCategory,
-                            latitude = ce.latitude,
-                            longitude = ce.longitude
+                            latitude = if (syncLocationAllowed) ce.latitude else null,
+                            longitude = if (syncLocationAllowed) ce.longitude else null
                         )
                     }
 

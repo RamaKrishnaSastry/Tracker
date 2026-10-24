@@ -223,6 +223,16 @@ class PreferencesManager(context: Context) {
         _activeLongitude.value = lon
     }
 
+    private val _isSyncLocationEnabled = MutableStateFlow(isSyncLocationEnabled())
+    val isSyncLocationEnabled: StateFlow<Boolean> = _isSyncLocationEnabled.asStateFlow()
+
+    fun isSyncLocationEnabled(): Boolean = prefs.getBoolean("is_sync_location_enabled", false)
+    fun setSyncLocationEnabled(enabled: Boolean) {
+        prefs.edit().putBoolean("is_sync_location_enabled", enabled).apply()
+        updateSettingsTimestamp()
+        _isSyncLocationEnabled.value = enabled
+    }
+
     fun updateSettingsTimestamp() {
         val now = java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", java.util.Locale.US).apply {
             timeZone = java.util.TimeZone.getTimeZone("UTC")

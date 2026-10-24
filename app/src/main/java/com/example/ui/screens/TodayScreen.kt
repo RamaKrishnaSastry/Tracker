@@ -474,10 +474,12 @@ fun TodayScreen(
                     shape = RoundedCornerShape(20.dp),
                     color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
                     border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)),
-                    modifier = Modifier.testTag("today_location_chip")
+                    modifier = Modifier
+                        .weight(1f, fill = false)
+                        .testTag("today_location_chip")
                 ) {
                     Row(
-                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
@@ -499,7 +501,8 @@ fun TodayScreen(
                             style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold),
                             color = MaterialTheme.colorScheme.onSurface,
                             maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f, fill = false)
                         )
                         Text(
                             text = "•",
@@ -509,13 +512,14 @@ fun TodayScreen(
                         Text(
                             text = activeCategory.displayName,
                             style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Medium),
-                            color = activeCategory.primaryColor
+                            color = activeCategory.primaryColor,
+                            maxLines = 1
                         )
                         Icon(
                             imageVector = Icons.Default.EditLocation,
                             contentDescription = "Change Location",
                             tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
-                            modifier = Modifier.size(13.dp)
+                            modifier = Modifier.size(14.dp)
                         )
                     }
                 }
@@ -523,49 +527,44 @@ fun TodayScreen(
                 Spacer(modifier = Modifier.width(8.dp))
 
                 // Compact Sync Pill
-                Row(
-                    modifier = Modifier
-                        .background(
-                            color = when (syncState) {
-                                SyncState.SYNCED -> activeMantraContainerColor.copy(alpha = 0.35f)
-                                SyncState.SYNCING -> MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.35f)
-                                SyncState.ERROR -> MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.25f)
-                                else -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-                            },
-                            shape = RoundedCornerShape(20.dp)
-                        )
-                        .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f), RoundedCornerShape(20.dp))
-                        .padding(horizontal = 10.dp, vertical = 6.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.Center
+                Surface(
+                    onClick = { if (syncState != SyncState.DISCONNECTED) viewModel.triggerManualSync() },
+                    shape = RoundedCornerShape(20.dp),
+                    color = when (syncState) {
+                        SyncState.SYNCED -> activeMantraContainerColor.copy(alpha = 0.35f)
+                        SyncState.SYNCING -> MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.35f)
+                        SyncState.ERROR -> MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.25f)
+                        else -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                    },
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f)),
+                    modifier = Modifier.testTag("today_sync_pill")
                 ) {
-                    val (icon, color, label) = when (syncState) {
-                        SyncState.DISCONNECTED -> Triple(Icons.Default.CloudOff, MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f), "Offline")
-                        SyncState.OFFLINE -> Triple(Icons.Default.CloudOff, MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f), "Offline")
-                        SyncState.SYNC_PENDING -> Triple(Icons.Default.Cloud, MaterialTheme.colorScheme.secondary, "Syncing")
-                        SyncState.SYNCING -> Triple(Icons.Default.Sync, activeMantraColor, "Syncing...")
-                        SyncState.SYNCED -> Triple(Icons.Default.CloudDone, activeMantraColor, "Synced")
-                        SyncState.ERROR -> Triple(Icons.Default.Error, MaterialTheme.colorScheme.error, "Sync error")
-                    }
-                    Icon(
-                        imageVector = icon,
-                        contentDescription = label,
-                        tint = color,
-                        modifier = Modifier.size(14.dp)
-                    )
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text(
-                        text = label,
-                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Medium),
-                        color = color
-                    )
+                    Row(
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        val (icon, color, label) = when (syncState) {
+                            SyncState.DISCONNECTED -> Triple(Icons.Default.CloudOff, MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f), "Offline")
+                            SyncState.OFFLINE -> Triple(Icons.Default.CloudOff, MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f), "Offline")
+                            SyncState.SYNC_PENDING -> Triple(Icons.Default.Cloud, MaterialTheme.colorScheme.secondary, "Syncing")
+                            SyncState.SYNCING -> Triple(Icons.Default.Sync, activeMantraColor, "Syncing...")
+                            SyncState.SYNCED -> Triple(Icons.Default.CloudDone, activeMantraColor, "Synced")
+                            SyncState.ERROR -> Triple(Icons.Default.Error, MaterialTheme.colorScheme.error, "Sync error")
+                        }
+                        Icon(
+                            imageVector = icon,
+                            contentDescription = label,
+                            tint = color,
+                            modifier = Modifier.size(14.dp)
+                        )
+                        Text(
+                            text = label,
+                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Medium),
+                            color = color
+                        )
 
-                    if (syncState != SyncState.DISCONNECTED) {
-                        Spacer(modifier = Modifier.width(4.dp))
-                        IconButton(
-                            onClick = { viewModel.triggerManualSync() },
-                            modifier = Modifier.size(18.dp)
-                        ) {
+                        if (syncState != SyncState.DISCONNECTED) {
                             Icon(
                                 Icons.Default.CloudUpload,
                                 contentDescription = "Manual Cloud Sync",

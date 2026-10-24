@@ -374,6 +374,38 @@ fun SettingsScreen(
                     }
 
                     Spacer(modifier = Modifier.height(12.dp))
+                    Divider(color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.1f))
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    var isSyncLocation by remember { mutableStateOf(viewModel.prefs.isSyncLocationEnabled()) }
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f).padding(end = 8.dp)) {
+                            Text(
+                                "Include GPS Coordinates in Cloud Backup",
+                                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Text(
+                                "When disabled, place name and category are synced, but raw latitude/longitude coordinates remain private on your device.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                            )
+                        }
+                        Switch(
+                            checked = isSyncLocation,
+                            onCheckedChange = { checked ->
+                                isSyncLocation = checked
+                                viewModel.prefs.setSyncLocationEnabled(checked)
+                            },
+                            modifier = Modifier.testTag("sync_location_toggle")
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(12.dp))
                     TextButton(
                         onClick = { showDeleteBackupDialog = true },
                         modifier = Modifier.align(Alignment.End).testTag("delete_cloud_backup_button")

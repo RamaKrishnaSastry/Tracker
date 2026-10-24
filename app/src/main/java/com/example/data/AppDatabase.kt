@@ -16,17 +16,19 @@ abstract class AppDatabase : RoomDatabase() {
         @Volatile
         private var INSTANCE: AppDatabase? = null
 
+        private fun safeAddColumn(db: SupportSQLiteDatabase, table: String, column: String, type: String) {
+            try {
+                db.execSQL("ALTER TABLE $table ADD COLUMN $column $type")
+            } catch (e: Exception) {
+                android.util.Log.w("AppDatabase", "Notice: Column $column in $table might already exist or migration skipped: ${e.message}")
+            }
+        }
+
         val MIGRATION_1_2 = object : Migration(1, 2) {
             override fun migrate(db: SupportSQLiteDatabase) {
-                try {
-                    db.execSQL("ALTER TABLE japa_entries ADD COLUMN pratahPunascharanaCount INTEGER NOT NULL DEFAULT 0")
-                } catch (e: Exception) {}
-                try {
-                    db.execSQL("ALTER TABLE japa_entries ADD COLUMN madhyahnikaPunascharanaCount INTEGER NOT NULL DEFAULT 0")
-                } catch (e: Exception) {}
-                try {
-                    db.execSQL("ALTER TABLE japa_entries ADD COLUMN sayamPunascharanaCount INTEGER NOT NULL DEFAULT 0")
-                } catch (e: Exception) {}
+                safeAddColumn(db, "japa_entries", "pratahPunascharanaCount", "INTEGER NOT NULL DEFAULT 0")
+                safeAddColumn(db, "japa_entries", "madhyahnikaPunascharanaCount", "INTEGER NOT NULL DEFAULT 0")
+                safeAddColumn(db, "japa_entries", "sayamPunascharanaCount", "INTEGER NOT NULL DEFAULT 0")
             }
         }
 
@@ -39,22 +41,22 @@ abstract class AppDatabase : RoomDatabase() {
 
         val MIGRATION_3_4 = object : Migration(3, 4) {
             override fun migrate(db: SupportSQLiteDatabase) {
-                try { db.execSQL("ALTER TABLE custom_practices ADD COLUMN practiceType TEXT NOT NULL DEFAULT 'CONTINUOUS'") } catch (e: Exception) {}
-                try { db.execSQL("ALTER TABLE custom_practices ADD COLUMN punasTarget INTEGER NOT NULL DEFAULT 0") } catch (e: Exception) {}
-                try { db.execSQL("ALTER TABLE custom_practices ADD COLUMN quickAddValues TEXT NOT NULL DEFAULT '10,54,108'") } catch (e: Exception) {}
-                try { db.execSQL("ALTER TABLE custom_practices ADD COLUMN initialLifetimeCount INTEGER NOT NULL DEFAULT 0") } catch (e: Exception) {}
-                try { db.execSQL("ALTER TABLE custom_practices ADD COLUMN reminderTime TEXT NOT NULL DEFAULT ''") } catch (e: Exception) {}
-                try { db.execSQL("ALTER TABLE custom_practices ADD COLUMN isReminderEnabled INTEGER NOT NULL DEFAULT 0") } catch (e: Exception) {}
-                try { db.execSQL("ALTER TABLE custom_practices ADD COLUMN themeColor TEXT NOT NULL DEFAULT 'Teal'") } catch (e: Exception) {}
-                try { db.execSQL("ALTER TABLE custom_practices ADD COLUMN isWidgetPinned INTEGER NOT NULL DEFAULT 0") } catch (e: Exception) {}
-                try { db.execSQL("ALTER TABLE custom_practices ADD COLUMN isArchived INTEGER NOT NULL DEFAULT 0") } catch (e: Exception) {}
+                safeAddColumn(db, "custom_practices", "practiceType", "TEXT NOT NULL DEFAULT 'CONTINUOUS'")
+                safeAddColumn(db, "custom_practices", "punasTarget", "INTEGER NOT NULL DEFAULT 0")
+                safeAddColumn(db, "custom_practices", "quickAddValues", "TEXT NOT NULL DEFAULT '10,54,108'")
+                safeAddColumn(db, "custom_practices", "initialLifetimeCount", "INTEGER NOT NULL DEFAULT 0")
+                safeAddColumn(db, "custom_practices", "reminderTime", "TEXT NOT NULL DEFAULT ''")
+                safeAddColumn(db, "custom_practices", "isReminderEnabled", "INTEGER NOT NULL DEFAULT 0")
+                safeAddColumn(db, "custom_practices", "themeColor", "TEXT NOT NULL DEFAULT 'Teal'")
+                safeAddColumn(db, "custom_practices", "isWidgetPinned", "INTEGER NOT NULL DEFAULT 0")
+                safeAddColumn(db, "custom_practices", "isArchived", "INTEGER NOT NULL DEFAULT 0")
                 
-                try { db.execSQL("ALTER TABLE custom_practice_entries ADD COLUMN morningCount INTEGER NOT NULL DEFAULT 0") } catch (e: Exception) {}
-                try { db.execSQL("ALTER TABLE custom_practice_entries ADD COLUMN afternoonCount INTEGER NOT NULL DEFAULT 0") } catch (e: Exception) {}
-                try { db.execSQL("ALTER TABLE custom_practice_entries ADD COLUMN eveningCount INTEGER NOT NULL DEFAULT 0") } catch (e: Exception) {}
-                try { db.execSQL("ALTER TABLE custom_practice_entries ADD COLUMN morningPunasCount INTEGER NOT NULL DEFAULT 0") } catch (e: Exception) {}
-                try { db.execSQL("ALTER TABLE custom_practice_entries ADD COLUMN afternoonPunasCount INTEGER NOT NULL DEFAULT 0") } catch (e: Exception) {}
-                try { db.execSQL("ALTER TABLE custom_practice_entries ADD COLUMN eveningPunasCount INTEGER NOT NULL DEFAULT 0") } catch (e: Exception) {}
+                safeAddColumn(db, "custom_practice_entries", "morningCount", "INTEGER NOT NULL DEFAULT 0")
+                safeAddColumn(db, "custom_practice_entries", "afternoonCount", "INTEGER NOT NULL DEFAULT 0")
+                safeAddColumn(db, "custom_practice_entries", "eveningCount", "INTEGER NOT NULL DEFAULT 0")
+                safeAddColumn(db, "custom_practice_entries", "morningPunasCount", "INTEGER NOT NULL DEFAULT 0")
+                safeAddColumn(db, "custom_practice_entries", "afternoonPunasCount", "INTEGER NOT NULL DEFAULT 0")
+                safeAddColumn(db, "custom_practice_entries", "eveningPunasCount", "INTEGER NOT NULL DEFAULT 0")
                 
                 db.execSQL("CREATE TABLE IF NOT EXISTS `japa_sessions` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `practiceId` INTEGER NOT NULL, `date` TEXT NOT NULL, `time` TEXT NOT NULL, `count` INTEGER NOT NULL, `typeDetail` TEXT NOT NULL DEFAULT '')")
             }
@@ -62,30 +64,30 @@ abstract class AppDatabase : RoomDatabase() {
 
         val MIGRATION_4_5 = object : Migration(4, 5) {
             override fun migrate(db: SupportSQLiteDatabase) {
-                try { db.execSQL("ALTER TABLE custom_practices ADD COLUMN isMorningEnabled INTEGER NOT NULL DEFAULT 1") } catch (e: Exception) {}
-                try { db.execSQL("ALTER TABLE custom_practices ADD COLUMN isMiddayEnabled INTEGER NOT NULL DEFAULT 1") } catch (e: Exception) {}
-                try { db.execSQL("ALTER TABLE custom_practices ADD COLUMN isEveningEnabled INTEGER NOT NULL DEFAULT 1") } catch (e: Exception) {}
-                try { db.execSQL("ALTER TABLE custom_practices ADD COLUMN isPunascharanaEnabled INTEGER NOT NULL DEFAULT 1") } catch (e: Exception) {}
-                try { db.execSQL("ALTER TABLE custom_practices ADD COLUMN incrementValue INTEGER NOT NULL DEFAULT 1") } catch (e: Exception) {}
+                safeAddColumn(db, "custom_practices", "isMorningEnabled", "INTEGER NOT NULL DEFAULT 1")
+                safeAddColumn(db, "custom_practices", "isMiddayEnabled", "INTEGER NOT NULL DEFAULT 1")
+                safeAddColumn(db, "custom_practices", "isEveningEnabled", "INTEGER NOT NULL DEFAULT 1")
+                safeAddColumn(db, "custom_practices", "isPunascharanaEnabled", "INTEGER NOT NULL DEFAULT 1")
+                safeAddColumn(db, "custom_practices", "incrementValue", "INTEGER NOT NULL DEFAULT 1")
             }
         }
 
         val MIGRATION_5_6 = object : Migration(5, 6) {
             override fun migrate(db: SupportSQLiteDatabase) {
-                try { db.execSQL("ALTER TABLE japa_entries ADD COLUMN placeName TEXT") } catch (e: Exception) {}
-                try { db.execSQL("ALTER TABLE japa_entries ADD COLUMN placeCategory TEXT") } catch (e: Exception) {}
-                try { db.execSQL("ALTER TABLE japa_entries ADD COLUMN latitude REAL") } catch (e: Exception) {}
-                try { db.execSQL("ALTER TABLE japa_entries ADD COLUMN longitude REAL") } catch (e: Exception) {}
+                safeAddColumn(db, "japa_entries", "placeName", "TEXT")
+                safeAddColumn(db, "japa_entries", "placeCategory", "TEXT")
+                safeAddColumn(db, "japa_entries", "latitude", "REAL")
+                safeAddColumn(db, "japa_entries", "longitude", "REAL")
 
-                try { db.execSQL("ALTER TABLE japa_sessions ADD COLUMN placeName TEXT") } catch (e: Exception) {}
-                try { db.execSQL("ALTER TABLE japa_sessions ADD COLUMN placeCategory TEXT") } catch (e: Exception) {}
-                try { db.execSQL("ALTER TABLE japa_sessions ADD COLUMN latitude REAL") } catch (e: Exception) {}
-                try { db.execSQL("ALTER TABLE japa_sessions ADD COLUMN longitude REAL") } catch (e: Exception) {}
+                safeAddColumn(db, "japa_sessions", "placeName", "TEXT")
+                safeAddColumn(db, "japa_sessions", "placeCategory", "TEXT")
+                safeAddColumn(db, "japa_sessions", "latitude", "REAL")
+                safeAddColumn(db, "japa_sessions", "longitude", "REAL")
 
-                try { db.execSQL("ALTER TABLE custom_practice_entries ADD COLUMN placeName TEXT") } catch (e: Exception) {}
-                try { db.execSQL("ALTER TABLE custom_practice_entries ADD COLUMN placeCategory TEXT") } catch (e: Exception) {}
-                try { db.execSQL("ALTER TABLE custom_practice_entries ADD COLUMN latitude REAL") } catch (e: Exception) {}
-                try { db.execSQL("ALTER TABLE custom_practice_entries ADD COLUMN longitude REAL") } catch (e: Exception) {}
+                safeAddColumn(db, "custom_practice_entries", "placeName", "TEXT")
+                safeAddColumn(db, "custom_practice_entries", "placeCategory", "TEXT")
+                safeAddColumn(db, "custom_practice_entries", "latitude", "REAL")
+                safeAddColumn(db, "custom_practice_entries", "longitude", "REAL")
             }
         }
 
