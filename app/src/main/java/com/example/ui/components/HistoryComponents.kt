@@ -17,6 +17,7 @@ import androidx.compose.material.icons.filled.ChevronLeft
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Place
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material3.*
@@ -297,6 +298,9 @@ fun InteractiveMonthlyCalendar(
     allPractices: List<CustomPractice> = emptyList(),
     onDateClick: (String) -> Unit = {},
     onDayClick: (String) -> Unit = onDateClick,
+    isBulkEditMode: Boolean = false,
+    selectedBulkDates: Set<String> = emptySet(),
+    onToggleDateSelection: (String) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val cal = Calendar.getInstance().apply {
@@ -355,6 +359,7 @@ fun InteractiveMonthlyCalendar(
                             customEntriesMap[selectedMantraId to dateStr]?.dailyTotal ?: 0
                         }
                         val isToday = dateStr == todayStr
+                        val isSelectedForBulk = selectedBulkDates.contains(dateStr)
 
                         Box(
                             modifier = Modifier
@@ -364,17 +369,24 @@ fun InteractiveMonthlyCalendar(
                                 .clip(RoundedCornerShape(8.dp))
                                 .background(
                                     when {
+                                        isSelectedForBulk -> MaterialTheme.colorScheme.primary.copy(alpha = 0.35f)
                                         total > 0 -> actualColor.copy(alpha = (0.2f + (total.toFloat() / 500f).coerceAtMost(0.8f)))
                                         isToday -> MaterialTheme.colorScheme.surfaceVariant
                                         else -> Color.Transparent
                                     }
                                 )
                                 .border(
-                                    width = if (isToday) 1.5.dp else 0.dp,
-                                    color = if (isToday) actualColor else Color.Transparent,
+                                    width = if (isSelectedForBulk) 2.dp else if (isToday) 1.5.dp else 0.dp,
+                                    color = if (isSelectedForBulk) MaterialTheme.colorScheme.primary else if (isToday) actualColor else Color.Transparent,
                                     shape = RoundedCornerShape(8.dp)
                                 )
-                                .clickable { onDayClick(dateStr) },
+                                .clickable {
+                                    if (isBulkEditMode) {
+                                        onToggleDateSelection(dateStr)
+                                    } else {
+                                        onDayClick(dateStr)
+                                    }
+                                },
                             contentAlignment = Alignment.Center
                         ) {
                             Column(
@@ -384,10 +396,10 @@ fun InteractiveMonthlyCalendar(
                                 Text(
                                     text = currentDayNum.toString(),
                                     style = MaterialTheme.typography.bodySmall.copy(
-                                        fontWeight = if (total > 0 || isToday) FontWeight.Bold else FontWeight.Normal,
+                                        fontWeight = if (total > 0 || isToday || isSelectedForBulk) FontWeight.Bold else FontWeight.Normal,
                                         fontSize = 11.sp
                                     ),
-                                    color = if (total > 0) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                                    color = if (isSelectedForBulk) MaterialTheme.colorScheme.primary else if (total > 0) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
                                 )
                                 if (total > 0) {
                                     Text(
@@ -420,7 +432,14 @@ fun CalendarSection(
     allPractices: List<CustomPractice>,
     currentCalendar: Calendar,
     onCalendarChange: (Calendar) -> Unit,
-    onDateClick: (String) -> Unit
+    onDateClick: (String) -> Unit,
+    isBulkEditMode: Boolean = false,
+    selectedBulkDates: Set<String> = emptySet(),
+    onToggleDateSelection: (String) -> Unit = {},
+    onToggleBulkEditMode: () -> Unit = {},
+    onSelectAllMonth: () -> Unit = {},
+    onClearBulkSelection: () -> Unit = {},
+    onOpenBulkEditDialog: () -> Unit = {}
 ) {
     val year = currentCalendar.get(Calendar.YEAR)
     val month = currentCalendar.get(Calendar.MONTH) + 1 // 1-indexed
@@ -433,7 +452,7 @@ fun CalendarSection(
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
-            // Month switcher header
+            // Month switcher header & Bulk Edit button
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -484,6 +503,69 @@ fun CalendarSection(
                     )
                 }
             }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // Bulk Edit Mode Toggle Row
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                TextButton(
+                    onClick = onToggleBulkEditMode,
+                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)
+                ) {
+                    Icon(
+                        imageVector = if (isBulkEditMode) Icons.Default.Close else Icons.Default.Place,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(if (isBulkEditMode) "Exit Bulk Edit" else "Bulk Edit Locations", fontSize = 12.sp)
+                }
+
+                if (isBulkEditMode) {
+                    Text(
+                        text = "${selectedBulkDates.size} selected",
+                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
+            }
+
+            if (isBulkEditMode) {
+                Spacer(modifier = Modifier.height(6.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    OutlinedButton(
+                        onClick = onSelectAllMonth,
+                        modifier = Modifier.weight(1f),
+                        contentPadding = PaddingValues(4.dp)
+                    ) {
+                        Text("Select Month", fontSize = 11.sp)
+                    }
+                    OutlinedButton(
+                        onClick = onClearBulkSelection,
+                        modifier = Modifier.weight(1f),
+                        contentPadding = PaddingValues(4.dp)
+                    ) {
+                        Text("Clear", fontSize = 11.sp)
+                    }
+                    Button(
+                        onClick = onOpenBulkEditDialog,
+                        enabled = selectedBulkDates.isNotEmpty(),
+                        modifier = Modifier.weight(1.2f),
+                        contentPadding = PaddingValues(4.dp)
+                    ) {
+                        Text("Edit Location", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+
             Spacer(modifier = Modifier.height(12.dp))
 
             InteractiveMonthlyCalendar(
@@ -495,7 +577,10 @@ fun CalendarSection(
                 combinedDailyTotalsMap = combinedDailyTotalsMap,
                 activeColor = activeColor,
                 allPractices = allPractices,
-                onDateClick = onDateClick
+                onDateClick = onDateClick,
+                isBulkEditMode = isBulkEditMode,
+                selectedBulkDates = selectedBulkDates,
+                onToggleDateSelection = onToggleDateSelection
             )
         }
     }
@@ -996,7 +1081,7 @@ fun PracticeLocationsBreakdownSection(
                         modifier = Modifier.size(20.dp)
                     )
                     Text(
-                        text = "Practice Locations Breakdown",
+                        text = "Location Analysis",
                         style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
                     )
                 }

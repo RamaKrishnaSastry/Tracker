@@ -30,11 +30,6 @@ import com.example.ui.theme.getMantraColor
 import java.text.SimpleDateFormat
 import java.util.*
 
-sealed class UnifiedHistoryItem(val dateString: String) {
-    data class GayatriItem(val entry: JapaEntry) : UnifiedHistoryItem(entry.date)
-    data class CustomItem(val entry: CustomPracticeEntry, val practice: CustomPractice) : UnifiedHistoryItem(entry.date)
-}
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HistoryScreen(
@@ -44,7 +39,6 @@ fun HistoryScreen(
     val entries by viewModel.allEntries.collectAsState()
     val allCustomEntries by viewModel.allCustomPracticeEntries.collectAsState()
     val allPractices by viewModel.allCustomPractices.collectAsState()
-    val searchQuery by viewModel.searchQuery.collectAsState()
     val stats by viewModel.statistics.collectAsState()
 
     val gayatriColorName by viewModel.gayatriColor.collectAsState()
@@ -72,6 +66,9 @@ fun HistoryScreen(
     var selectedSummaryDate by rememberSaveable { mutableStateOf<String?>(null) }
     var locationEditDate by rememberSaveable { mutableStateOf<String?>(null) }
     var selectedPlaceCategoryFilter by rememberSaveable { mutableStateOf<String?>(null) }
+    var isBulkEditMode by rememberSaveable { mutableStateOf(false) }
+    val selectedBulkDates = remember { mutableStateOf(setOf<String>()) }
+    var showBulkLocationPicker by rememberSaveable { mutableStateOf(false) }
 
     val practiceTotals by viewModel.allPracticeTotals.collectAsState()
 
@@ -199,69 +196,6 @@ fun HistoryScreen(
         }.sortedByDescending { it.monthStr }
     }
 
-    // List of unified history items sorted descending
-    val combinedList = remember(entries, allCustomEntries, allPractices) {
-        val list = mutableListOf<UnifiedHistoryItem>()
-        entries.forEach { list.add(UnifiedHistoryItem.GayatriItem(it)) }
-        allCustomEntries.forEach { entry ->
-            val p = allPractices.find { it.id == entry.practiceId }
-            if (p != null) {
-                list.add(UnifiedHistoryItem.CustomItem(entry, p))
-            }
-        }
-        list.sortedByDescending { it.dateString }
-    }
-
-    // Filter items based on selected selection, category filter AND search query
-    val filteredItems = remember(combinedList, selectedMantraId, searchQuery, selectedPlaceCategoryFilter) {
-        combinedList.filter { item ->
-            // Match selected mantra ID
-            val matchesFilter = when {
-                selectedMantraId == null -> true // Combined
-                selectedMantraId == GAYATRI_PRACTICE_ID -> item is UnifiedHistoryItem.GayatriItem
-                else -> item is UnifiedHistoryItem.CustomItem && item.entry.practiceId == selectedMantraId
-            }
-
-            // Match place category filter
-            val matchesCategory = if (selectedPlaceCategoryFilter == null) {
-                true
-            } else {
-                val cat = when (item) {
-                    is UnifiedHistoryItem.GayatriItem -> item.entry.placeCategory ?: "Home"
-                    is UnifiedHistoryItem.CustomItem -> item.entry.placeCategory ?: "Home"
-                }
-                cat.equals(selectedPlaceCategoryFilter, ignoreCase = true)
-            }
-
-            // Match search query (date, practice name, place name or category)
-            val matchesQuery = if (searchQuery.trim().isEmpty()) {
-                true
-            } else {
-                val query = searchQuery.trim()
-                val placeName = when (item) {
-                    is UnifiedHistoryItem.GayatriItem -> item.entry.placeName ?: ""
-                    is UnifiedHistoryItem.CustomItem -> item.entry.placeName ?: ""
-                }
-                val placeCat = when (item) {
-                    is UnifiedHistoryItem.GayatriItem -> item.entry.placeCategory ?: ""
-                    is UnifiedHistoryItem.CustomItem -> item.entry.placeCategory ?: ""
-                }
-                item.dateString.contains(query, ignoreCase = true) ||
-                placeName.contains(query, ignoreCase = true) ||
-                placeCat.contains(query, ignoreCase = true) ||
-                when (item) {
-                    is UnifiedHistoryItem.GayatriItem -> gayatriName.contains(query, ignoreCase = true) || "Gayatri".contains(query, ignoreCase = true)
-                    is UnifiedHistoryItem.CustomItem -> {
-                        val practiceName = allPractices.find { it.id == item.entry.practiceId }?.name ?: ""
-                        practiceName.contains(query, ignoreCase = true)
-                    }
-                }
-            }
-
-            matchesFilter && matchesCategory && matchesQuery
-        }
-    }
-
     val locationStats = remember(entries, allCustomEntries, selectedMantraId) {
         val catMap = mutableMapOf<String, Long>()
         var totalChants = 0L
@@ -339,6 +273,20 @@ fun HistoryScreen(
                     isSelected = selectedMantraId == null,
                     onClick = { selectedMantraId = null }
                 )
+            }
+
+            // PRACTICE LOCATIONS BREAKDOWN SECTION (just after combined grand total bar)
+            if (locationStats.first.isNotEmpty()) {
+                item {
+                    Spacer(modifier = Modifier.height(4.dp))
+                    PracticeLocationsBreakdownSection(
+                        locationStats = locationStats,
+                        selectedPlaceCategoryFilter = selectedPlaceCategoryFilter,
+                        onCategoryClick = { catId ->
+                            selectedPlaceCategoryFilter = if (selectedPlaceCategoryFilter == catId) null else catId
+                        }
+                    )
+                }
             }
 
             // 2. LOCATION-BASED FILTERS — provided immediately above mantra filters
@@ -459,6 +407,35 @@ fun HistoryScreen(
                     onCalendarChange = { currentCalendarState.value = it },
                     onDateClick = { clickedDate ->
                         selectedSummaryDate = clickedDate
+                    },
+                    isBulkEditMode = isBulkEditMode,
+                    selectedBulkDates = selectedBulkDates.value,
+                    onToggleDateSelection = { dateStr ->
+                        val current = selectedBulkDates.value
+                        selectedBulkDates.value = if (current.contains(dateStr)) current - dateStr else current + dateStr
+                    },
+                    onToggleBulkEditMode = {
+                        isBulkEditMode = !isBulkEditMode
+                        if (!isBulkEditMode) selectedBulkDates.value = emptySet()
+                    },
+                    onSelectAllMonth = {
+                        val calTemp = Calendar.getInstance().apply {
+                            time = currentCalendar.time
+                            set(Calendar.DAY_OF_MONTH, 1)
+                        }
+                        val maxDay = calTemp.getActualMaximum(Calendar.DAY_OF_MONTH)
+                        val allMonthDates = (1..maxDay).map { d ->
+                            String.format(Locale.US, "%04d-%02d-%02d", currentYear, currentMonth, d)
+                        }.toSet()
+                        selectedBulkDates.value = allMonthDates
+                    },
+                    onClearBulkSelection = {
+                        selectedBulkDates.value = emptySet()
+                    },
+                    onOpenBulkEditDialog = {
+                        if (selectedBulkDates.value.isNotEmpty()) {
+                            showBulkLocationPicker = true
+                        }
                     }
                 )
             }
@@ -471,97 +448,6 @@ fun HistoryScreen(
                         monthAnalyticsList = monthAnalyticsList,
                         accentColor = if (selectedMantraId == GAYATRI_PRACTICE_ID) gayatriColor else getMantraColor(allPractices.find { it.id == selectedMantraId }?.themeColor ?: "teal")
                     )
-                }
-            }
-
-            // 6. PRACTICE LOCATIONS BREAKDOWN SECTION
-            if (locationStats.first.isNotEmpty()) {
-                item {
-                    Spacer(modifier = Modifier.height(8.dp))
-                    PracticeLocationsBreakdownSection(
-                        locationStats = locationStats,
-                        selectedPlaceCategoryFilter = selectedPlaceCategoryFilter,
-                        onCategoryClick = { catId ->
-                            selectedPlaceCategoryFilter = if (selectedPlaceCategoryFilter == catId) null else catId
-                        }
-                    )
-                }
-            }
-
-            // 6. PRACTICE LOG ENTRIES SECTION
-            item {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 12.dp, bottom = 4.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = "PRACTICE LOG ENTRIES (${filteredItems.size})",
-                        style = MaterialTheme.typography.labelMedium.copy(
-                            fontWeight = FontWeight.Bold,
-                            letterSpacing = 0.8.sp
-                        ),
-                        color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f)
-                    )
-
-                    if (selectedPlaceCategoryFilter != null) {
-                        TextButton(
-                            onClick = { selectedPlaceCategoryFilter = null },
-                            contentPadding = PaddingValues(0.dp)
-                        ) {
-                            Text("Clear Filter", fontSize = 12.sp)
-                        }
-                    }
-                }
-            }
-
-            if (filteredItems.isEmpty()) {
-                item {
-                    Card(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 12.dp),
-                        colors = CardDefaults.cardColors(
-                            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
-                        ),
-                        shape = RoundedCornerShape(12.dp)
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(24.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                text = "No practice entries match your current search or location filter.",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
-                                textAlign = TextAlign.Center
-                            )
-                        }
-                    }
-                }
-            } else {
-                items(filteredItems) { item ->
-                    when (item) {
-                        is UnifiedHistoryItem.GayatriItem -> {
-                            HistoryItemRow(
-                                entry = item.entry,
-                                gayatriName = gayatriName,
-                                gayatriColor = gayatriColor,
-                                onClick = { selectedEntryToEdit = item.entry }
-                            )
-                        }
-                        is UnifiedHistoryItem.CustomItem -> {
-                            CustomHistoryItemRow(
-                                entry = item.entry,
-                                practice = item.practice,
-                                onClick = { selectedCustomEntryToEdit = item.entry to item.practice }
-                            )
-                        }
-                    }
                 }
             }
 
@@ -669,6 +555,22 @@ fun HistoryScreen(
             onLocationSelected = { name, cat, lat, lon ->
                 viewModel.updateEntryLocation(date, name, cat, lat, lon)
                 locationEditDate = null
+            }
+        )
+    }
+
+    if (showBulkLocationPicker) {
+        LocationPickerDialog(
+            initialPlaceName = "Home",
+            initialCategory = "Home",
+            title = "Edit Location for ${selectedBulkDates.value.size} Selected Dates",
+            confirmButtonText = "Apply to Selected Dates",
+            onDismiss = { showBulkLocationPicker = false },
+            onLocationSelected = { name, cat, lat, lon ->
+                viewModel.bulkUpdateEntriesLocation(selectedBulkDates.value, name, cat, lat, lon)
+                selectedBulkDates.value = emptySet()
+                isBulkEditMode = false
+                showBulkLocationPicker = false
             }
         )
     }

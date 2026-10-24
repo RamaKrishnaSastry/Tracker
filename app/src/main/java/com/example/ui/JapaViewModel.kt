@@ -198,6 +198,42 @@ class JapaViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    fun bulkUpdateEntriesLocation(dates: Set<String>, placeName: String, placeCategory: String, latitude: Double? = null, longitude: Double? = null) {
+        viewModelScope.launch {
+            dates.forEach { date ->
+                val gExisting = database.japaDao().getEntryByDate(date)
+                if (gExisting != null) {
+                    val updated = gExisting.copy(
+                        placeName = placeName,
+                        placeCategory = placeCategory,
+                        latitude = latitude ?: gExisting.latitude,
+                        longitude = longitude ?: gExisting.longitude,
+                        updatedAt = repository.getCurrentUTCTimestamp()
+                    )
+                    database.japaDao().insertOrUpdate(updated)
+                    if (date == getTodayDateString()) {
+                        _todayEntry.value = updated
+                    }
+                }
+                val allCustoms = customPracticeDao.getAllCustomPracticeEntries()
+                allCustoms.filter { it.date == date }.forEach { ce ->
+                    val updated = ce.copy(
+                        placeName = placeName,
+                        placeCategory = placeCategory,
+                        latitude = latitude ?: ce.latitude,
+                        longitude = longitude ?: ce.longitude,
+                        updatedAt = repository.getCurrentUTCTimestamp()
+                    )
+                    customPracticeDao.insertOrUpdateEntry(updated)
+                    if (date == getTodayDateString() && ce.practiceId == activePracticeId.value) {
+                        _activeCustomEntry.value = updated
+                    }
+                }
+            }
+            repository.syncWithCloud(isLocalUpdate = true)
+        }
+    }
+
     fun updateSessionLocation(sessionId: Long, placeName: String, placeCategory: String) {
         viewModelScope.launch {
             customPracticeDao.updateSessionLocation(sessionId, placeName, placeCategory)
