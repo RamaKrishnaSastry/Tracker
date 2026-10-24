@@ -349,7 +349,7 @@ fun TodayScreen(
                             onSave = { updated, isDef ->
                                 viewModel.updatePractice(updated)
                                 if (isDef) viewModel.setDefaultPractice(updated.id)
-                                else if (defaultPracticeId == updated.id) viewModel.setDefaultPractice(-1L)
+                                else if (defaultPracticeId == updated.id) viewModel.setDefaultPractice(com.example.ui.NO_PRACTICE_SELECTED_ID)
                                 showEditDialog = false
                             },
                             onDelete = {
@@ -821,14 +821,14 @@ fun SimplePracticeContent(
                     punasCount = morningPunas,
                     icon = { Icon(Icons.Outlined.WbTwilight, "Morning Icon", tint = Color(0xFFFF9800), modifier = Modifier.size(28.dp)) },
                     onSave = { newCount, newPunas ->
-                        if (practice.id == -1L) {
+                        if (practice.id == com.example.ui.GAYATRI_PRACTICE_ID) {
                             viewModel.updateGayatriSandhyaCounts(date, newCount, afternoonCount, eveningCount, newPunas, afternoonPunas, eveningPunas)
                         } else {
                             viewModel.updateCustomPracticeSandhyaCounts(practice.id, date, newCount, afternoonCount, eveningCount, newPunas, afternoonPunas, eveningPunas)
                         }
                     },
                     onClearAll = {
-                        if (practice.id == -1L) {
+                        if (practice.id == com.example.ui.GAYATRI_PRACTICE_ID) {
                             viewModel.updateGayatriSandhyaCounts(date, 0, afternoonCount, eveningCount, 0, afternoonPunas, eveningPunas)
                         } else {
                             viewModel.updateCustomPracticeSandhyaCounts(practice.id, date, 0, afternoonCount, eveningCount, 0, afternoonPunas, eveningPunas)
@@ -848,14 +848,14 @@ fun SimplePracticeContent(
                     punasCount = afternoonPunas,
                     icon = { Icon(Icons.Outlined.WbSunny, "Midday Icon", tint = Color(0xFFF1C40F), modifier = Modifier.size(28.dp)) },
                     onSave = { newCount, newPunas ->
-                        if (practice.id == -1L) {
+                        if (practice.id == com.example.ui.GAYATRI_PRACTICE_ID) {
                             viewModel.updateGayatriSandhyaCounts(date, morningCount, newCount, eveningCount, morningPunas, newPunas, eveningPunas)
                         } else {
                             viewModel.updateCustomPracticeSandhyaCounts(practice.id, date, morningCount, newCount, eveningCount, morningPunas, newPunas, eveningPunas)
                         }
                     },
                     onClearAll = {
-                        if (practice.id == -1L) {
+                        if (practice.id == com.example.ui.GAYATRI_PRACTICE_ID) {
                             viewModel.updateGayatriSandhyaCounts(date, morningCount, 0, eveningCount, morningPunas, 0, eveningPunas)
                         } else {
                             viewModel.updateCustomPracticeSandhyaCounts(practice.id, date, morningCount, 0, eveningCount, morningPunas, 0, eveningPunas)
@@ -875,14 +875,14 @@ fun SimplePracticeContent(
                     punasCount = eveningPunas,
                     icon = { Icon(Icons.Outlined.Brightness4, "Evening Icon", tint = Color(0xFF9B59B6), modifier = Modifier.size(28.dp)) },
                     onSave = { newCount, newPunas ->
-                        if (practice.id == -1L) {
+                        if (practice.id == com.example.ui.GAYATRI_PRACTICE_ID) {
                             viewModel.updateGayatriSandhyaCounts(date, morningCount, afternoonCount, newCount, morningPunas, afternoonPunas, newPunas)
                         } else {
                             viewModel.updateCustomPracticeSandhyaCounts(practice.id, date, morningCount, afternoonCount, newCount, morningPunas, afternoonPunas, newPunas)
                         }
                     },
                     onClearAll = {
-                        if (practice.id == -1L) {
+                        if (practice.id == com.example.ui.GAYATRI_PRACTICE_ID) {
                             viewModel.updateGayatriSandhyaCounts(date, morningCount, afternoonCount, 0, morningPunas, afternoonPunas, 0)
                         } else {
                             viewModel.updateCustomPracticeSandhyaCounts(practice.id, date, morningCount, afternoonCount, 0, morningPunas, afternoonPunas, 0)

@@ -5,6 +5,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
+const val NO_PRACTICE_SELECTED_ID = 0L
+
 class PreferencesManager(context: Context) {
     private val prefs = context.getSharedPreferences("gayatri_japa_prefs", Context.MODE_PRIVATE)
 
@@ -128,13 +130,13 @@ class PreferencesManager(context: Context) {
     private val _activePracticeId = MutableStateFlow(getActivePracticeId())
     val activePracticeId: StateFlow<Long> = _activePracticeId.asStateFlow()
 
-    fun getActivePracticeId(): Long = prefs.getLong("active_practice_id", -1L)
+    fun getActivePracticeId(): Long = prefs.getLong("active_practice_id", NO_PRACTICE_SELECTED_ID)
     fun setActivePracticeId(id: Long) {
         prefs.edit().putLong("active_practice_id", id).apply()
         _activePracticeId.value = id
     }
 
-    private val _defaultPracticeId = MutableStateFlow(prefs.getLong("default_practice_id", -1L))
+    private val _defaultPracticeId = MutableStateFlow(prefs.getLong("default_practice_id", NO_PRACTICE_SELECTED_ID))
     val defaultPracticeId: StateFlow<Long> = _defaultPracticeId.asStateFlow()
 
     fun getDefaultPracticeId(): Long = _defaultPracticeId.value
@@ -142,6 +144,9 @@ class PreferencesManager(context: Context) {
         prefs.edit().putLong("default_practice_id", id).apply()
         _defaultPracticeId.value = id
     }
+
+    fun hasExplicitGayatriConfig(): Boolean = prefs.contains("gayatri_name") || prefs.contains("gayatri_color")
+    fun rawGetLong(key: String, default: Long): Long = prefs.getLong(key, default)
 
     private val _gayatriColor = MutableStateFlow(getGayatriColor())
     val gayatriColor: StateFlow<String> = _gayatriColor.asStateFlow()

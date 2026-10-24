@@ -13,6 +13,7 @@ import java.text.SimpleDateFormat
 import java.util.*
 
 const val GAYATRI_PRACTICE_ID = -1L
+const val NO_PRACTICE_SELECTED_ID = 0L
 
 class JapaViewModel(application: Application) : AndroidViewModel(application) {
     private val TAG = "JapaViewModel"
@@ -232,14 +233,36 @@ class JapaViewModel(application: Application) : AndroidViewModel(application) {
     init {
         ensureTodayEntryExists()
         
-        // Use default practice ID if set and app just opened (active is -1)
+        // Migration/cleanup check for legacy installed users where active/default was default -1L
+        val rawActiveId = prefs.rawGetLong("active_practice_id", NO_PRACTICE_SELECTED_ID)
+        val rawDefaultId = prefs.rawGetLong("default_practice_id", NO_PRACTICE_SELECTED_ID)
+        if (rawActiveId == -1L || rawDefaultId == -1L) {
+            viewModelScope.launch {
+                val hasGayatriConfig = prefs.hasExplicitGayatriConfig()
+                val allEntries = dao.getAllEntries()
+                val hasGayatriEntries = allEntries.any { 
+                    it.pratahSandhyaCount > 0 || it.madhyahnikaSandhyaCount > 0 || it.sayamSandhyaCount > 0 || 
+                    it.pratahPunascharanaCount > 0 || it.madhyahnikaPunascharanaCount > 0 || it.sayamPunascharanaCount > 0 
+                }
+                if (!hasGayatriConfig && !hasGayatriEntries) {
+                    if (rawActiveId == -1L) {
+                        prefs.setActivePracticeId(NO_PRACTICE_SELECTED_ID)
+                        _activePracticeId.value = NO_PRACTICE_SELECTED_ID
+                    }
+                    if (rawDefaultId == -1L) {
+                        prefs.setDefaultPracticeId(NO_PRACTICE_SELECTED_ID)
+                    }
+                }
+            }
+        }
+
+        // Use default practice ID if set and app just opened
         val currentPid = prefs.getActivePracticeId()
         val defaultPid = prefs.getDefaultPracticeId()
 
-        // Only set active practice if it was already set, don't default to Gayatri Japa if not onboarded
-        if (currentPid != -1L) {
+        if (currentPid != NO_PRACTICE_SELECTED_ID) {
              _activePracticeId.value = currentPid
-        } else if (defaultPid != -1L) {
+        } else if (defaultPid != NO_PRACTICE_SELECTED_ID) {
             _activePracticeId.value = defaultPid
             prefs.setActivePracticeId(defaultPid)
         }
@@ -403,8 +426,8 @@ class JapaViewModel(application: Application) : AndroidViewModel(application) {
             prefs.updateSettingsTimestamp()
             reminderManager.scheduleAlarms()
             if (_activePracticeId.value == practice.id) {
-                _activePracticeId.value = GAYATRI_PRACTICE_ID
-                prefs.setActivePracticeId(GAYATRI_PRACTICE_ID)
+                _activePracticeId.value = NO_PRACTICE_SELECTED_ID
+                prefs.setActivePracticeId(NO_PRACTICE_SELECTED_ID)
             }
             repository.syncWithCloud(isLocalUpdate = true)
         }
