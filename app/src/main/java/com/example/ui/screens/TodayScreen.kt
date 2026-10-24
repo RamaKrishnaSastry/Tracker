@@ -448,7 +448,7 @@ fun TodayScreen(
                 // Interactive Practice Location Chip
                 Surface(
                     onClick = { showLocationPicker = true },
-                    shape = RoundedCornerShape(20.dp),
+                    shape = MaterialTheme.shapes.large,
                     color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
                     border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)),
                     modifier = Modifier
@@ -506,7 +506,7 @@ fun TodayScreen(
                 // Compact Sync Pill
                 Surface(
                     onClick = { if (syncState != SyncState.DISCONNECTED) viewModel.triggerManualSync() },
-                    shape = RoundedCornerShape(20.dp),
+                    shape = MaterialTheme.shapes.large,
                     color = when (syncState) {
                         SyncState.SYNCED -> activeMantraContainerColor.copy(alpha = 0.35f)
                         SyncState.SYNCING -> MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.35f)
@@ -569,7 +569,7 @@ fun TodayScreen(
                         1.dp,
                         if (isGoalReached) Color(0xFF4CAF50).copy(alpha = 0.4f) else activeMantraColor.copy(alpha = 0.2f)
                     ),
-                    shape = RoundedCornerShape(12.dp)
+                    shape = MaterialTheme.shapes.small
                 ) {
                     Column(modifier = Modifier.padding(12.dp)) {
                         Row(
@@ -747,7 +747,7 @@ fun SimplePracticeContent(
                 colors = CardDefaults.cardColors(
                     containerColor = mantraColor.copy(alpha = 0.12f)
                 ),
-                shape = RoundedCornerShape(24.dp)
+                shape = MaterialTheme.shapes.large
             ) {
                 Row(
                     modifier = Modifier
@@ -890,7 +890,7 @@ fun SimplePracticeContent(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(bottom = 16.dp),
-                shape = RoundedCornerShape(24.dp),
+                shape = MaterialTheme.shapes.large,
                 colors = CardDefaults.cardColors(
                     containerColor = mantraColor.copy(alpha = 0.10f)
                 ),
@@ -980,7 +980,7 @@ fun SimplePracticeContent(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(bottom = 16.dp),
-                shape = RoundedCornerShape(20.dp),
+                shape = MaterialTheme.shapes.large,
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                 border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
             ) {
@@ -1241,7 +1241,7 @@ fun GayatriSpecificContent(
                      containerColor = gayatriColor.copy(alpha = 0.12f)
                  ),
                  border = androidx.compose.foundation.BorderStroke(1.dp, gayatriColor.copy(alpha = 0.25f)),
-                 shape = RoundedCornerShape(24.dp)
+                 shape = MaterialTheme.shapes.large
              ) {
                  Row(
                      modifier = Modifier
@@ -1557,7 +1557,7 @@ fun SandhyaIntervalCard(
             containerColor = MaterialTheme.colorScheme.surface
         ),
         border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
-        shape = RoundedCornerShape(16.dp)
+        shape = MaterialTheme.shapes.medium
     ) {
         Column(
             modifier = Modifier.padding(12.dp)

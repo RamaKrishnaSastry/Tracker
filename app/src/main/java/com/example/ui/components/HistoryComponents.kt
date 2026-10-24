@@ -128,7 +128,7 @@ fun DailySummaryDialog(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f), RoundedCornerShape(10.dp))
+                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f), MaterialTheme.shapes.extraSmall)
                         .padding(horizontal = 10.dp, vertical = 6.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
@@ -153,7 +153,7 @@ fun DailySummaryDialog(
                 if (!hasAnyMatchingRecords) {
                     Card(
                         modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
-                        shape = RoundedCornerShape(12.dp),
+                        shape = MaterialTheme.shapes.small,
                         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f))
                     ) {
                         Box(
@@ -176,7 +176,7 @@ fun DailySummaryDialog(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .then(if (onEditGayatri != null) Modifier.clickable { onEditGayatri(actualGEntry) } else Modifier),
-                            shape = RoundedCornerShape(12.dp),
+                            shape = MaterialTheme.shapes.small,
                             colors = CardDefaults.cardColors(containerColor = gayatriColor.copy(alpha = 0.12f)),
                             border = BorderStroke(1.dp, gayatriColor.copy(alpha = 0.25f))
                         ) {
@@ -240,7 +240,7 @@ fun DailySummaryDialog(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .then(if (onEditCustom != null && entry != null) Modifier.clickable { onEditCustom(entry, practice) } else Modifier),
-                                shape = RoundedCornerShape(12.dp),
+                                shape = MaterialTheme.shapes.small,
                                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)),
                                 border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
                             ) {
@@ -431,7 +431,7 @@ fun InteractiveMonthlyCalendar(
                                 .onGloballyPositioned { coords ->
                                     cellCoordinatesMap[dateStr] = coords
                                 }
-                                .clip(RoundedCornerShape(8.dp))
+                                .clip(MaterialTheme.shapes.extraSmall)
                                 .background(
                                     when {
                                         isSelectedForBulk -> MaterialTheme.colorScheme.primary.copy(alpha = 0.35f)
@@ -443,7 +443,7 @@ fun InteractiveMonthlyCalendar(
                                 .border(
                                     width = if (isSelectedForBulk) 2.dp else if (isToday) 1.5.dp else 0.dp,
                                     color = if (isSelectedForBulk) MaterialTheme.colorScheme.primary else if (isToday) actualColor else Color.Transparent,
-                                    shape = RoundedCornerShape(8.dp)
+                                    shape = MaterialTheme.shapes.extraSmall
                                 )
                                 .combinedClickable(
                                     onClick = {
@@ -480,7 +480,7 @@ fun InteractiveMonthlyCalendar(
                                 if (total > 0) {
                                     Box(
                                         modifier = Modifier
-                                            .clip(RoundedCornerShape(4.dp))
+                                            .clip(MaterialTheme.shapes.extraSmall)
                                             .background(
                                                 lerp(
                                                     if (isSelectedForBulk) MaterialTheme.colorScheme.primary else actualColor,
@@ -561,7 +561,7 @@ fun CalendarSection(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f)),
-        shape = RoundedCornerShape(16.dp),
+        shape = MaterialTheme.shapes.medium,
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
@@ -689,7 +689,7 @@ fun HistoryItemRow(
             width = if (isSelected) 2.dp else 1.dp,
             color = if (isSelected) MaterialTheme.colorScheme.primary else gayatriColor.copy(alpha = 0.3f)
         ),
-        shape = RoundedCornerShape(16.dp),
+        shape = MaterialTheme.shapes.medium,
         elevation = CardDefaults.cardElevation(defaultElevation = if (isSelected) 3.dp else 1.dp)
     ) {
         Row(
@@ -853,7 +853,7 @@ fun CustomHistoryItemRow(
             width = if (isSelected) 2.dp else 1.dp,
             color = if (isSelected) MaterialTheme.colorScheme.primary else color.copy(alpha = 0.3f)
         ),
-        shape = RoundedCornerShape(16.dp),
+        shape = MaterialTheme.shapes.medium,
         elevation = CardDefaults.cardElevation(defaultElevation = if (isSelected) 3.dp else 1.dp)
     ) {
         Row(
@@ -1003,7 +1003,7 @@ fun CombinedHistoryBanner(
             width = if (isSelected) 2.dp else 1.dp,
             color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)
         ),
-        shape = RoundedCornerShape(16.dp),
+        shape = MaterialTheme.shapes.medium,
         elevation = CardDefaults.cardElevation(defaultElevation = if (isSelected) 3.dp else 1.dp)
     ) {
         Row(
@@ -1092,7 +1092,7 @@ fun MantraSelectionGrid(
                     width = if (isGayatriSelected) 2.dp else 1.dp,
                     color = if (isGayatriSelected) gayatriColor else MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)
                 ),
-                shape = RoundedCornerShape(12.dp),
+                shape = MaterialTheme.shapes.small,
                 elevation = CardDefaults.cardElevation(defaultElevation = if (isGayatriSelected) 2.dp else 0.dp)
             ) {
                 Column(
@@ -1141,7 +1141,7 @@ fun MantraSelectionGrid(
                         width = if (isSelected) 2.dp else 1.dp,
                         color = if (isSelected) color else MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)
                     ),
-                    shape = RoundedCornerShape(12.dp),
+                    shape = MaterialTheme.shapes.small,
                     elevation = CardDefaults.cardElevation(defaultElevation = if (isSelected) 2.dp else 0.dp)
                 ) {
                     Column(
@@ -1203,7 +1203,7 @@ fun PracticeLocationsBreakdownSection(
 
     Card(
         modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
+        shape = MaterialTheme.shapes.medium,
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f)),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
@@ -1282,7 +1282,7 @@ fun PracticeLocationsBreakdownSection(
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(6.dp)
-                            .clip(RoundedCornerShape(3.dp)),
+                            .clip(MaterialTheme.shapes.extraSmall),
                         color = category.primaryColor,
                         trackColor = category.containerColor
                     )

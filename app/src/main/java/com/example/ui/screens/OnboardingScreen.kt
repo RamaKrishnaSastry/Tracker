@@ -191,7 +191,7 @@ fun OnboardingScreen(
                                             .fillMaxWidth()
                                             .height(56.dp)
                                             .testTag("onboarding_continue_button"),
-                                        shape = RoundedCornerShape(16.dp),
+                                        shape = MaterialTheme.shapes.large,
                                         colors = ButtonDefaults.buttonColors(
                                             containerColor = MaterialTheme.colorScheme.primary
                                         )
@@ -280,7 +280,7 @@ fun OnboardingScreen(
                                         .fillMaxWidth()
                                         .height(56.dp)
                                         .testTag("google_login_button"),
-                                    shape = RoundedCornerShape(16.dp),
+                                    shape = MaterialTheme.shapes.large,
                                     colors = ButtonDefaults.buttonColors(
                                         containerColor = MaterialTheme.colorScheme.onBackground,
                                         contentColor = MaterialTheme.colorScheme.background
@@ -300,7 +300,7 @@ fun OnboardingScreen(
                                         .fillMaxWidth()
                                         .height(56.dp)
                                         .testTag("skip_login_button"),
-                                    shape = RoundedCornerShape(16.dp),
+                                    shape = MaterialTheme.shapes.large,
                                     border = ButtonDefaults.outlinedButtonBorder
                                 ) {
                                     Text(
@@ -384,7 +384,7 @@ fun OnboardingScreen(
                                     .fillMaxWidth()
                                     .height(56.dp)
                                     .testTag("onboarding_finish_button"),
-                                shape = RoundedCornerShape(16.dp),
+                                shape = MaterialTheme.shapes.large,
                                 enabled = addedPracticeIds.isNotEmpty()
                             ) {
                                 Text("Finish & Begin Chanting", style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold))

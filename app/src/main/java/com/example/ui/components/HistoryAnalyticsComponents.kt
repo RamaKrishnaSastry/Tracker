@@ -68,7 +68,7 @@ fun MonthlyOverviewCard(
             colors = CardDefaults.cardColors(
                 containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
             ),
-            shape = RoundedCornerShape(12.dp)
+            shape = MaterialTheme.shapes.small
         ) {
             Row(
                 modifier = Modifier
@@ -159,7 +159,7 @@ fun MonthlyOverviewCard(
             colors = CardDefaults.cardColors(
                 containerColor = activeColor.copy(alpha = 0.05f)
             ),
-            shape = RoundedCornerShape(12.dp)
+            shape = MaterialTheme.shapes.small
         ) {
             Row(
                 modifier = Modifier
@@ -199,7 +199,7 @@ fun MonthlyOverviewCard(
             modifier = Modifier.fillMaxWidth(),
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
             border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)),
-            shape = RoundedCornerShape(16.dp)
+            shape = MaterialTheme.shapes.medium
         ) {
             Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
                 Text(
@@ -257,7 +257,7 @@ fun MonthlyOverviewCard(
                     Spacer(modifier = Modifier.width(12.dp))
                     LinearProgressIndicator(
                         progress = { percentActive },
-                        modifier = Modifier.weight(1f).height(8.dp).clip(RoundedCornerShape(4.dp)),
+                        modifier = Modifier.weight(1f).height(8.dp).clip(MaterialTheme.shapes.extraSmall),
                         color = activeColor,
                         trackColor = activeColor.copy(alpha = 0.15f),
                     )
@@ -384,7 +384,7 @@ fun MonthlyCompactStatsRow(
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceColorAtElevation(1.dp)
         ),
-        shape = RoundedCornerShape(16.dp),
+        shape = MaterialTheme.shapes.medium,
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
     ) {
         Row(
@@ -500,7 +500,7 @@ fun MonthlyTrendSection(
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceColorAtElevation(1.dp)
         ),
-        shape = RoundedCornerShape(20.dp),
+        shape = MaterialTheme.shapes.large,
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
     ) {
         Column(

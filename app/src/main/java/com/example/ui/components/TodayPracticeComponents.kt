@@ -52,7 +52,7 @@ fun PracticeMetaRow(
         // Location Chip
         Surface(
             onClick = onLocationClick,
-            shape = RoundedCornerShape(20.dp),
+            shape = MaterialTheme.shapes.large,
             color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
             border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)),
             modifier = Modifier
@@ -111,7 +111,7 @@ fun PracticeMetaRow(
         // Sync Pill
         Surface(
             onClick = { if (syncState != SyncState.DISCONNECTED) onSyncClick() },
-            shape = RoundedCornerShape(20.dp),
+            shape = MaterialTheme.shapes.large,
             color = when (syncState) {
                 SyncState.SYNCED -> activeMantraContainerColor.copy(alpha = 0.35f)
                 SyncState.SYNCING -> MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.35f)
@@ -165,7 +165,7 @@ fun WeeklyProgressCard(
         modifier = modifier
             .fillMaxWidth()
             .padding(vertical = 6.dp),
-        shape = RoundedCornerShape(16.dp),
+        shape = MaterialTheme.shapes.medium,
         colors = CardDefaults.cardColors(
             containerColor = if (isGoalReached) Color(0xFF4CAF50).copy(alpha = 0.12f) else activeMantraColor.copy(alpha = 0.08f)
         ),
@@ -217,7 +217,7 @@ fun WeeklyProgressCard(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(6.dp)
-                    .clip(RoundedCornerShape(3.dp)),
+                    .clip(MaterialTheme.shapes.extraSmall),
                 color = if (isGoalReached) Color(0xFF4CAF50) else activeMantraColor,
                 trackColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
             )

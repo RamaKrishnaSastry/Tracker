@@ -60,7 +60,7 @@ fun CurrentCountSummaryBox(
         colors = CardDefaults.cardColors(
             containerColor = accentColor.copy(alpha = 0.08f)
         ),
-        shape = RoundedCornerShape(16.dp),
+        shape = MaterialTheme.shapes.medium,
         border = BorderStroke(1.dp, accentColor.copy(alpha = 0.25f))
     ) {
         Column(
@@ -159,7 +159,7 @@ fun HistoricalEditDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        shape = RoundedCornerShape(24.dp),
+        shape = MaterialTheme.shapes.large,
         containerColor = MaterialTheme.colorScheme.surface,
         tonalElevation = 6.dp,
         title = {
@@ -255,7 +255,7 @@ fun HistoricalEditDialog(
                                 placeholder = { Text("0") },
                                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                                 singleLine = true,
-                                shape = RoundedCornerShape(12.dp),
+                                shape = MaterialTheme.shapes.small,
                                 colors = OutlinedTextFieldDefaults.colors(
                                     focusedBorderColor = accentColor,
                                     focusedLabelColor = accentColor,
@@ -280,7 +280,7 @@ fun HistoricalEditDialog(
                                 placeholder = { Text("0") },
                                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                                 singleLine = true,
-                                shape = RoundedCornerShape(12.dp),
+                                shape = MaterialTheme.shapes.small,
                                 colors = OutlinedTextFieldDefaults.colors(
                                     focusedBorderColor = accentColor,
                                     focusedLabelColor = accentColor,
@@ -305,7 +305,7 @@ fun HistoricalEditDialog(
                                 placeholder = { Text("0") },
                                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                                 singleLine = true,
-                                shape = RoundedCornerShape(12.dp),
+                                shape = MaterialTheme.shapes.small,
                                 colors = OutlinedTextFieldDefaults.colors(
                                     focusedBorderColor = accentColor,
                                     focusedLabelColor = accentColor,
@@ -341,7 +341,7 @@ fun HistoricalEditDialog(
                                 placeholder = { Text("0") },
                                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                                 singleLine = true,
-                                shape = RoundedCornerShape(12.dp),
+                                shape = MaterialTheme.shapes.small,
                                 colors = OutlinedTextFieldDefaults.colors(
                                     focusedBorderColor = accentColor,
                                     focusedLabelColor = accentColor,
@@ -366,7 +366,7 @@ fun HistoricalEditDialog(
                                 placeholder = { Text("0") },
                                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                                 singleLine = true,
-                                shape = RoundedCornerShape(12.dp),
+                                shape = MaterialTheme.shapes.small,
                                 colors = OutlinedTextFieldDefaults.colors(
                                     focusedBorderColor = accentColor,
                                     focusedLabelColor = accentColor,
@@ -391,7 +391,7 @@ fun HistoricalEditDialog(
                                 placeholder = { Text("0") },
                                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                                 singleLine = true,
-                                shape = RoundedCornerShape(12.dp),
+                                shape = MaterialTheme.shapes.small,
                                 colors = OutlinedTextFieldDefaults.colors(
                                     focusedBorderColor = accentColor,
                                     focusedLabelColor = accentColor,
@@ -428,7 +428,7 @@ fun HistoricalEditDialog(
                             placeholder = { Text("0") },
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                             singleLine = true,
-                            shape = RoundedCornerShape(12.dp),
+                            shape = MaterialTheme.shapes.small,
                             colors = OutlinedTextFieldDefaults.colors(
                                 focusedBorderColor = accentColor,
                                 focusedLabelColor = accentColor,
@@ -453,7 +453,7 @@ fun HistoricalEditDialog(
                             placeholder = { Text("0") },
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                             singleLine = true,
-                            shape = RoundedCornerShape(12.dp),
+                            shape = MaterialTheme.shapes.small,
                             colors = OutlinedTextFieldDefaults.colors(
                                 focusedBorderColor = accentColor,
                                 focusedLabelColor = accentColor,
@@ -478,7 +478,7 @@ fun HistoricalEditDialog(
                             placeholder = { Text("0") },
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                             singleLine = true,
-                            shape = RoundedCornerShape(12.dp),
+                            shape = MaterialTheme.shapes.small,
                             colors = OutlinedTextFieldDefaults.colors(
                                 focusedBorderColor = accentColor,
                                 focusedLabelColor = accentColor,
@@ -518,7 +518,7 @@ fun HistoricalEditDialog(
                         onSave(m, a, ev, mp, ap, ep)
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = accentColor),
-                    shape = RoundedCornerShape(12.dp),
+                    shape = MaterialTheme.shapes.small,
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(48.dp)
@@ -528,7 +528,7 @@ fun HistoricalEditDialog(
                 }
                 TextButton(
                     onClick = onDismiss,
-                    shape = RoundedCornerShape(12.dp),
+                    shape = MaterialTheme.shapes.small,
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(44.dp)
@@ -560,7 +560,7 @@ fun CustomSandhyaEditDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        shape = RoundedCornerShape(24.dp),
+        shape = MaterialTheme.shapes.large,
         containerColor = MaterialTheme.colorScheme.surface,
         tonalElevation = 6.dp,
         title = {
@@ -656,7 +656,7 @@ fun CustomSandhyaEditDialog(
                                 placeholder = { Text("0") },
                                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                                 singleLine = true,
-                                shape = RoundedCornerShape(12.dp),
+                                shape = MaterialTheme.shapes.small,
                                 colors = OutlinedTextFieldDefaults.colors(
                                     focusedBorderColor = mantraColor,
                                     focusedLabelColor = mantraColor,
@@ -681,7 +681,7 @@ fun CustomSandhyaEditDialog(
                                 placeholder = { Text("0") },
                                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                                 singleLine = true,
-                                shape = RoundedCornerShape(12.dp),
+                                shape = MaterialTheme.shapes.small,
                                 colors = OutlinedTextFieldDefaults.colors(
                                     focusedBorderColor = mantraColor,
                                     focusedLabelColor = mantraColor,
@@ -706,7 +706,7 @@ fun CustomSandhyaEditDialog(
                                 placeholder = { Text("0") },
                                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                                 singleLine = true,
-                                shape = RoundedCornerShape(12.dp),
+                                shape = MaterialTheme.shapes.small,
                                 colors = OutlinedTextFieldDefaults.colors(
                                     focusedBorderColor = mantraColor,
                                     focusedLabelColor = mantraColor,
@@ -742,7 +742,7 @@ fun CustomSandhyaEditDialog(
                                 placeholder = { Text("0") },
                                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                                 singleLine = true,
-                                shape = RoundedCornerShape(12.dp),
+                                shape = MaterialTheme.shapes.small,
                                 colors = OutlinedTextFieldDefaults.colors(
                                     focusedBorderColor = mantraColor,
                                     focusedLabelColor = mantraColor,
@@ -767,7 +767,7 @@ fun CustomSandhyaEditDialog(
                                 placeholder = { Text("0") },
                                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                                 singleLine = true,
-                                shape = RoundedCornerShape(12.dp),
+                                shape = MaterialTheme.shapes.small,
                                 colors = OutlinedTextFieldDefaults.colors(
                                     focusedBorderColor = mantraColor,
                                     focusedLabelColor = mantraColor,
@@ -792,7 +792,7 @@ fun CustomSandhyaEditDialog(
                                 placeholder = { Text("0") },
                                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                                 singleLine = true,
-                                shape = RoundedCornerShape(12.dp),
+                                shape = MaterialTheme.shapes.small,
                                 colors = OutlinedTextFieldDefaults.colors(
                                     focusedBorderColor = mantraColor,
                                     focusedLabelColor = mantraColor,
@@ -829,7 +829,7 @@ fun CustomSandhyaEditDialog(
                             placeholder = { Text("0") },
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                             singleLine = true,
-                            shape = RoundedCornerShape(12.dp),
+                            shape = MaterialTheme.shapes.small,
                             colors = OutlinedTextFieldDefaults.colors(
                                 focusedBorderColor = mantraColor,
                                 focusedLabelColor = mantraColor,
@@ -854,7 +854,7 @@ fun CustomSandhyaEditDialog(
                             placeholder = { Text("0") },
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                             singleLine = true,
-                            shape = RoundedCornerShape(12.dp),
+                            shape = MaterialTheme.shapes.small,
                             colors = OutlinedTextFieldDefaults.colors(
                                 focusedBorderColor = mantraColor,
                                 focusedLabelColor = mantraColor,
@@ -879,7 +879,7 @@ fun CustomSandhyaEditDialog(
                             placeholder = { Text("0") },
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                             singleLine = true,
-                            shape = RoundedCornerShape(12.dp),
+                            shape = MaterialTheme.shapes.small,
                             colors = OutlinedTextFieldDefaults.colors(
                                 focusedBorderColor = mantraColor,
                                 focusedLabelColor = mantraColor,
@@ -919,7 +919,7 @@ fun CustomSandhyaEditDialog(
                         onSave(m, a, ev, mp, ap, ep)
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = mantraColor),
-                    shape = RoundedCornerShape(12.dp),
+                    shape = MaterialTheme.shapes.small,
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(48.dp)
@@ -929,7 +929,7 @@ fun CustomSandhyaEditDialog(
                 }
                 TextButton(
                     onClick = onDismiss,
-                    shape = RoundedCornerShape(12.dp),
+                    shape = MaterialTheme.shapes.small,
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(44.dp)
@@ -955,7 +955,7 @@ fun CustomCountEditDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        shape = RoundedCornerShape(24.dp),
+        shape = MaterialTheme.shapes.large,
         containerColor = MaterialTheme.colorScheme.surface,
         tonalElevation = 6.dp,
         title = {
@@ -1022,7 +1022,7 @@ fun CustomCountEditDialog(
                     placeholder = { Text("0") },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     singleLine = true,
-                    shape = RoundedCornerShape(12.dp),
+                    shape = MaterialTheme.shapes.small,
                     colors = OutlinedTextFieldDefaults.colors(
                         focusedBorderColor = mantraColor,
                         focusedLabelColor = mantraColor,
@@ -1054,7 +1054,7 @@ fun CustomCountEditDialog(
                         onSave(countInput.toIntOrNull() ?: 0)
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = mantraColor),
-                    shape = RoundedCornerShape(12.dp),
+                    shape = MaterialTheme.shapes.small,
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(48.dp)
@@ -1063,7 +1063,7 @@ fun CustomCountEditDialog(
                 }
                 TextButton(
                     onClick = onDismiss,
-                    shape = RoundedCornerShape(12.dp),
+                    shape = MaterialTheme.shapes.small,
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(44.dp)
