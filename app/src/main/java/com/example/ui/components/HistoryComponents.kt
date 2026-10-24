@@ -334,6 +334,10 @@ fun InteractiveMonthlyCalendar(
     val cellCoordinatesMap = remember { mutableStateMapOf<String, LayoutCoordinates>() }
     var datesAddedThisDrag by remember { mutableStateOf(setOf<String>()) }
 
+    LaunchedEffect(year, month) {
+        cellCoordinatesMap.clear()
+    }
+
     Column(
         modifier = modifier
             .fillMaxWidth()
@@ -561,85 +565,55 @@ fun CalendarSection(
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
-            // Header Row: Transforming depending on isBulkEditMode
-            if (isBulkEditMode) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
+            // Month switcher header (Always visible to allow cross-month browsing)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                IconButton(
+                    onClick = {
+                        val newCal = Calendar.getInstance().apply {
+                            time = currentCalendar.time
+                            add(Calendar.MONTH, -1)
+                        }
+                        onCalendarChange(newCal)
+                    }
                 ) {
-                    IconButton(onClick = onToggleBulkEditMode) {
-                        Icon(
-                            imageVector = Icons.Default.Close,
-                            contentDescription = "Exit Selection Mode",
-                            tint = MaterialTheme.colorScheme.onSurface
-                        )
-                    }
-
-                    Text(
-                        text = if (selectedBulkDates.isEmpty()) "Select dates" else "${selectedBulkDates.size} selected",
-                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                        color = MaterialTheme.colorScheme.primary
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                        contentDescription = "Previous Month"
                     )
-
-                    IconButton(onClick = onSelectAllMonth) {
-                        Icon(
-                            imageVector = Icons.Default.SelectAll,
-                            contentDescription = "Select All Month",
-                            tint = MaterialTheme.colorScheme.primary
-                        )
-                    }
                 }
-            } else {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
+
+                val monthYearString = remember(year, month) {
+                    val sdf = SimpleDateFormat("MMMM yyyy", Locale.getDefault())
+                    val calTemp = Calendar.getInstance().apply {
+                        set(Calendar.YEAR, year)
+                        set(Calendar.MONTH, month - 1)
+                    }
+                    sdf.format(calTemp.time)
+                }
+
+                Text(
+                    text = monthYearString,
+                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+
+                IconButton(
+                    onClick = {
+                        val newCal = Calendar.getInstance().apply {
+                            time = currentCalendar.time
+                            add(Calendar.MONTH, 1)
+                        }
+                        onCalendarChange(newCal)
+                    }
                 ) {
-                    IconButton(
-                        onClick = {
-                            val newCal = Calendar.getInstance().apply {
-                                time = currentCalendar.time
-                                add(Calendar.MONTH, -1)
-                            }
-                            onCalendarChange(newCal)
-                        }
-                    ) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "Previous Month"
-                        )
-                    }
-
-                    val monthYearString = remember(year, month) {
-                        val sdf = SimpleDateFormat("MMMM yyyy", Locale.getDefault())
-                        val calTemp = Calendar.getInstance().apply {
-                            set(Calendar.YEAR, year)
-                            set(Calendar.MONTH, month - 1)
-                        }
-                        sdf.format(calTemp.time)
-                    }
-
-                    Text(
-                        text = monthYearString,
-                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                        color = MaterialTheme.colorScheme.onSurface
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                        contentDescription = "Next Month"
                     )
-
-                    IconButton(
-                        onClick = {
-                            val newCal = Calendar.getInstance().apply {
-                                time = currentCalendar.time
-                                add(Calendar.MONTH, 1)
-                            }
-                            onCalendarChange(newCal)
-                        }
-                    ) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowForward,
-                            contentDescription = "Next Month"
-                        )
-                    }
                 }
             }
 

@@ -11,7 +11,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Analytics
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Place
+import androidx.compose.material.icons.filled.SelectAll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -71,7 +73,12 @@ fun HistoryScreen(
     var locationEditDate by rememberSaveable { mutableStateOf<String?>(null) }
     var selectedPlaceCategoryFilter by rememberSaveable { mutableStateOf<String?>(null) }
     var isBulkEditMode by rememberSaveable { mutableStateOf(false) }
-    val selectedBulkDates = remember { mutableStateOf(setOf<String>()) }
+
+    val setSaver = Saver<MutableState<Set<String>>, ArrayList<String>>(
+        save = { ArrayList(it.value) },
+        restore = { mutableStateOf(it.toSet()) }
+    )
+    val selectedBulkDates = rememberSaveable(saver = setSaver) { mutableStateOf(setOf<String>()) }
     var showBulkLocationPicker by rememberSaveable { mutableStateOf(false) }
 
     val practiceTotals by viewModel.allPracticeTotals.collectAsState()
@@ -259,7 +266,7 @@ fun HistoryScreen(
         modifier = modifier.fillMaxSize(),
         bottomBar = {
             AnimatedVisibility(
-                visible = isBulkEditMode && selectedBulkDates.value.isNotEmpty(),
+                visible = isBulkEditMode,
                 enter = slideInVertically(initialOffsetY = { it }) + fadeIn(),
                 exit = slideOutVertically(targetOffsetY = { it }) + fadeOut()
             ) {
@@ -274,18 +281,60 @@ fun HistoryScreen(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 12.dp),
+                            .padding(horizontal = 8.dp, vertical = 8.dp),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text(
-                            text = "${selectedBulkDates.value.size} date${if (selectedBulkDates.value.size > 1) "s" else ""} selected",
-                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(2.dp)
+                        ) {
+                            IconButton(
+                                onClick = {
+                                    isBulkEditMode = false
+                                    selectedBulkDates.value = emptySet()
+                                }
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Close,
+                                    contentDescription = "Exit Selection Mode",
+                                    tint = MaterialTheme.colorScheme.onSurface
+                                )
+                            }
+
+                            Text(
+                                text = if (selectedBulkDates.value.isEmpty()) "Select dates" else "${selectedBulkDates.value.size} selected",
+                                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+
+                            IconButton(
+                                onClick = {
+                                    val calTemp = Calendar.getInstance().apply {
+                                        time = currentCalendar.time
+                                        set(Calendar.DAY_OF_MONTH, 1)
+                                    }
+                                    val maxDay = calTemp.getActualMaximum(Calendar.DAY_OF_MONTH)
+                                    val cYear = currentCalendar.get(Calendar.YEAR)
+                                    val cMonth = currentCalendar.get(Calendar.MONTH) + 1
+                                    val monthDates = (1..maxDay).map { d ->
+                                        String.format(Locale.US, "%04d-%02d-%02d", cYear, cMonth, d)
+                                    }.toSet()
+                                    selectedBulkDates.value = selectedBulkDates.value + monthDates
+                                    isBulkEditMode = true
+                                }
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.SelectAll,
+                                    contentDescription = "Select All Month",
+                                    tint = MaterialTheme.colorScheme.primary
+                                )
+                            }
+                        }
 
                         Button(
                             onClick = { showBulkLocationPicker = true },
+                            enabled = selectedBulkDates.value.isNotEmpty(),
                             modifier = Modifier.heightIn(min = 48.dp),
                             colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
                             shape = RoundedCornerShape(12.dp)
@@ -295,7 +344,7 @@ fun HistoryScreen(
                                 contentDescription = null,
                                 modifier = Modifier.size(18.dp)
                             )
-                            Spacer(modifier = Modifier.width(8.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
                             Text(
                                 text = "Edit Location",
                                 style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold)

@@ -9,6 +9,7 @@ import com.example.data.*
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
+import androidx.room.withTransaction
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -199,33 +200,40 @@ class JapaViewModel(application: Application) : AndroidViewModel(application) {
 
     fun bulkUpdateEntriesLocation(dates: Set<String>, placeName: String, placeCategory: String, latitude: Double? = null, longitude: Double? = null) {
         viewModelScope.launch {
-            dates.forEach { date ->
-                val gExisting = database.japaDao().getEntryByDate(date)
-                if (gExisting != null) {
-                    val updated = gExisting.copy(
-                        placeName = placeName,
-                        placeCategory = placeCategory,
-                        latitude = latitude ?: gExisting.latitude,
-                        longitude = longitude ?: gExisting.longitude,
-                        updatedAt = repository.getCurrentUTCTimestamp()
-                    )
-                    database.japaDao().insertOrUpdate(updated)
-                    if (date == getTodayDateString()) {
-                        _todayEntry.value = updated
-                    }
-                }
+            database.withTransaction {
                 val allCustoms = customPracticeDao.getAllCustomPracticeEntries()
-                allCustoms.filter { it.date == date }.forEach { ce ->
-                    val updated = ce.copy(
-                        placeName = placeName,
-                        placeCategory = placeCategory,
-                        latitude = latitude ?: ce.latitude,
-                        longitude = longitude ?: ce.longitude,
-                        updatedAt = repository.getCurrentUTCTimestamp()
-                    )
-                    customPracticeDao.insertOrUpdateEntry(updated)
-                    if (date == getTodayDateString() && ce.practiceId == activePracticeId.value) {
-                        _activeCustomEntry.value = updated
+                val customsByDate = allCustoms.groupBy { it.date }
+                val todayStr = getTodayDateString()
+                val currentActivePid = activePracticeId.value
+
+                dates.forEach { date ->
+                    val gExisting = database.japaDao().getEntryByDate(date)
+                    if (gExisting != null) {
+                        val updated = gExisting.copy(
+                            placeName = placeName,
+                            placeCategory = placeCategory,
+                            latitude = latitude ?: gExisting.latitude,
+                            longitude = longitude ?: gExisting.longitude,
+                            updatedAt = repository.getCurrentUTCTimestamp()
+                        )
+                        database.japaDao().insertOrUpdate(updated)
+                        if (date == todayStr) {
+                            _todayEntry.value = updated
+                        }
+                    }
+
+                    customsByDate[date]?.forEach { ce ->
+                        val updated = ce.copy(
+                            placeName = placeName,
+                            placeCategory = placeCategory,
+                            latitude = latitude ?: ce.latitude,
+                            longitude = longitude ?: ce.longitude,
+                            updatedAt = repository.getCurrentUTCTimestamp()
+                        )
+                        customPracticeDao.insertOrUpdateEntry(updated)
+                        if (date == todayStr && ce.practiceId == currentActivePid) {
+                            _activeCustomEntry.value = updated
+                        }
                     }
                 }
             }
