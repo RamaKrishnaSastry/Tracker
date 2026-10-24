@@ -54,7 +54,11 @@ fun DailySummaryDialog(
     allPractices: List<CustomPractice> = emptyList(),
     customEntries: Map<Long, com.example.data.CustomPracticeEntry> = emptyMap(),
     customEntriesMap: Map<Long, com.example.data.CustomPracticeEntry> = customEntries,
+    filterMantraId: Long? = null,
+    filterPlaceCategory: String? = null,
     onEditLocation: (() -> Unit)? = null,
+    onEditGayatri: ((JapaEntry) -> Unit)? = null,
+    onEditCustom: ((CustomPracticeEntry, CustomPractice) -> Unit)? = null,
     onDismiss: () -> Unit
 ) {
     val actualGEntry = gayatriEntry ?: gEntry
@@ -69,6 +73,20 @@ fun DailySummaryDialog(
     } catch (e: Exception) {
         // Fallback
     }
+
+    // Determine eligible records satisfying BOTH filters
+    val isGayatriLocMatch = actualGEntry != null && (filterPlaceCategory == null || (actualGEntry.placeCategory ?: "Home").equals(filterPlaceCategory, ignoreCase = true))
+    val showGayatri = (filterMantraId == null || filterMantraId == com.example.ui.GAYATRI_PRACTICE_ID) && isGayatriLocMatch && (actualGEntry?.dailyTotal ?: 0) > 0
+
+    val eligibleCustoms = allPractices.filter { practice ->
+        if (practice.id == com.example.ui.GAYATRI_PRACTICE_ID) return@filter false
+        if (filterMantraId != null && filterMantraId != practice.id) return@filter false
+        val entry = actualCustomMap[practice.id] ?: return@filter false
+        val matchesLoc = filterPlaceCategory == null || (entry.placeCategory ?: "Home").equals(filterPlaceCategory, ignoreCase = true)
+        matchesLoc && entry.dailyTotal > 0
+    }
+
+    val hasAnyMatchingRecords = showGayatri || eligibleCustoms.isNotEmpty()
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -85,7 +103,7 @@ fun DailySummaryDialog(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .heightIn(max = 360.dp)
+                    .heightIn(max = 380.dp)
                     .verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
@@ -120,102 +138,137 @@ fun DailySummaryDialog(
                     }
                 }
 
-                // Gayatri Entry
-                val gCount = actualGEntry?.dailyTotal ?: 0
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp),
-                    colors = CardDefaults.cardColors(containerColor = gayatriColor.copy(alpha = 0.12f)),
-                    border = BorderStroke(1.dp, gayatriColor.copy(alpha = 0.25f))
-                ) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(12.dp),
-                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                if (!hasAnyMatchingRecords) {
+                    Card(
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f))
                     ) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
+                        Box(
+                            modifier = Modifier.fillMaxWidth().padding(20.dp),
+                            contentAlignment = Alignment.Center
                         ) {
                             Text(
-                                text = gayatriName,
-                                style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Bold),
-                                color = gayatriColor
-                            )
-                            Text(
-                                text = String.format(Locale.US, "%,d", gCount),
-                                style = MaterialTheme.typography.titleMedium.copy(
-                                    fontWeight = FontWeight.Bold,
-                                    fontFamily = FontFamily.Monospace
-                                ),
-                                color = gayatriColor
-                            )
-                        }
-
-                        if (actualGEntry != null && (actualGEntry.pratahSandhyaCount > 0 || actualGEntry.madhyahnikaSandhyaCount > 0 || actualGEntry.sayamSandhyaCount > 0)) {
-                            Text(
-                                text = "Pratah: ${actualGEntry.pratahSandhyaCount}  •  Madhyahnika: ${actualGEntry.madhyahnikaSandhyaCount}  •  Sayam: ${actualGEntry.sayamSandhyaCount}",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
+                                text = "No practice recorded on this date matching the active filters.",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                                textAlign = TextAlign.Center
                             )
                         }
                     }
-                }
-
-                // Custom Practices
-                val activeCustoms = allPractices.filter { it.id != com.example.ui.GAYATRI_PRACTICE_ID }
-                if (activeCustoms.isNotEmpty()) {
-                    Text(
-                        text = "CUSTOM PRACTICES",
-                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold, letterSpacing = 0.8.sp),
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
-                        modifier = Modifier.padding(top = 4.dp)
-                    )
-
-                    activeCustoms.forEach { practice ->
-                        val entry = actualCustomMap[practice.id]
-                        val cCount = entry?.dailyTotal ?: 0
-                        val pColor = getMantraColor(practice.themeColor)
-
+                } else {
+                    // Gayatri Entry if matching
+                    if (showGayatri && actualGEntry != null) {
+                        val gCount = actualGEntry.dailyTotal
                         Card(
-                            modifier = Modifier.fillMaxWidth(),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .then(if (onEditGayatri != null) Modifier.clickable { onEditGayatri(actualGEntry) } else Modifier),
                             shape = RoundedCornerShape(12.dp),
-                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)),
-                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
+                            colors = CardDefaults.cardColors(containerColor = gayatriColor.copy(alpha = 0.12f)),
+                            border = BorderStroke(1.dp, gayatriColor.copy(alpha = 0.25f))
                         ) {
-                            Row(
+                            Column(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .padding(12.dp),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
+                                verticalArrangement = Arrangement.spacedBy(4.dp)
                             ) {
                                 Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    Box(
-                                        modifier = Modifier
-                                            .size(10.dp)
-                                            .clip(CircleShape)
-                                            .background(pColor)
-                                    )
                                     Text(
-                                        text = practice.name,
-                                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold)
+                                        text = gayatriName,
+                                        style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Bold),
+                                        color = gayatriColor
                                     )
+                                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                        Text(
+                                            text = String.format(Locale.US, "%,d", gCount),
+                                            style = MaterialTheme.typography.titleMedium.copy(
+                                                fontWeight = FontWeight.Bold,
+                                                fontFamily = FontFamily.Monospace
+                                            ),
+                                            color = gayatriColor
+                                        )
+                                        if (onEditGayatri != null) {
+                                            Text("(Edit)", fontSize = 10.sp, color = gayatriColor.copy(alpha = 0.7f))
+                                        }
+                                    }
                                 }
 
-                                Text(
-                                    text = String.format(Locale.US, "%,d", cCount),
-                                    style = MaterialTheme.typography.bodyLarge.copy(
-                                        fontWeight = FontWeight.Bold,
-                                        fontFamily = FontFamily.Monospace
-                                    ),
-                                    color = if (cCount > 0) pColor else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
-                                )
+                                if (actualGEntry.pratahSandhyaCount > 0 || actualGEntry.madhyahnikaSandhyaCount > 0 || actualGEntry.sayamSandhyaCount > 0) {
+                                    Text(
+                                        text = "Pratah: ${actualGEntry.pratahSandhyaCount}  •  Madhyahnika: ${actualGEntry.madhyahnikaSandhyaCount}  •  Sayam: ${actualGEntry.sayamSandhyaCount}",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    // Custom Practices matching filters
+                    if (eligibleCustoms.isNotEmpty()) {
+                        Text(
+                            text = "PRACTICES",
+                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold, letterSpacing = 0.8.sp),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                            modifier = Modifier.padding(top = 4.dp)
+                        )
+
+                        eligibleCustoms.forEach { practice ->
+                            val entry = actualCustomMap[practice.id]
+                            val cCount = entry?.dailyTotal ?: 0
+                            val pColor = getMantraColor(practice.themeColor)
+
+                            Card(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .then(if (onEditCustom != null && entry != null) Modifier.clickable { onEditCustom(entry, practice) } else Modifier),
+                                shape = RoundedCornerShape(12.dp),
+                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)),
+                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
+                            ) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(12.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        Box(
+                                            modifier = Modifier
+                                                .size(10.dp)
+                                                .clip(CircleShape)
+                                                .background(pColor)
+                                        )
+                                        Text(
+                                            text = practice.name,
+                                            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold)
+                                        )
+                                    }
+
+                                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                        Text(
+                                            text = String.format(Locale.US, "%,d", cCount),
+                                            style = MaterialTheme.typography.bodyLarge.copy(
+                                                fontWeight = FontWeight.Bold,
+                                                fontFamily = FontFamily.Monospace
+                                            ),
+                                            color = if (cCount > 0) pColor else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
+                                        )
+                                        if (onEditCustom != null && entry != null) {
+                                            Text("(Edit)", fontSize = 10.sp, color = pColor.copy(alpha = 0.7f))
+                                        }
+                                    }
+                                }
                             }
                         }
                     }

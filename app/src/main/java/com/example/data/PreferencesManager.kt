@@ -107,6 +107,35 @@ class PreferencesManager(context: Context) {
         prefs.edit().putLong("last_sync_time_ms", timeMs).apply()
     }
 
+    fun getDeviceId(): String {
+        var id = prefs.getString("sync_device_id", null)
+        if (id.isNullOrBlank()) {
+            id = java.util.UUID.randomUUID().toString()
+            prefs.edit().putString("sync_device_id", id).apply()
+        }
+        return id
+    }
+
+    fun getLastProcessedRemoteVersion(): Long = prefs.getLong("last_remote_version", 0L)
+    fun setLastProcessedRemoteVersion(version: Long) {
+        prefs.edit().putLong("last_remote_version", version).apply()
+    }
+
+    fun getLastProcessedRemoteChecksum(): String = prefs.getString("last_remote_checksum", "") ?: ""
+    fun setLastProcessedRemoteChecksum(checksum: String) {
+        prefs.edit().putString("last_remote_checksum", checksum).apply()
+    }
+
+    fun getLastRemoteModifiedTime(): String = prefs.getString("last_remote_modified_time", "") ?: ""
+    fun setLastRemoteModifiedTime(time: String) {
+        prefs.edit().putString("last_remote_modified_time", time).apply()
+    }
+
+    fun getLastRemoteAuthorDeviceId(): String = prefs.getString("last_remote_author_device_id", "") ?: ""
+    fun setLastRemoteAuthorDeviceId(deviceId: String) {
+        prefs.edit().putString("last_remote_author_device_id", deviceId).apply()
+    }
+
     private val _isPunascharanaEnabled = MutableStateFlow(isPunascharanaEnabled())
     val isPunascharanaEnabled: StateFlow<Boolean> = _isPunascharanaEnabled.asStateFlow()
 

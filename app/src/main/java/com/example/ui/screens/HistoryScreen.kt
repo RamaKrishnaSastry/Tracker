@@ -83,37 +83,81 @@ fun HistoryScreen(
         stats.lifetimeTotal + customTotal
     }
 
-    // Lookup Maps for Calendar
-    val gayatriEntriesMap = remember(entries) {
-        entries.associateBy { it.date }
+    // 1. Eligible records filtered by location (First stage independent filter)
+    val locationFilteredGayatriEntries = remember(entries, selectedPlaceCategoryFilter) {
+        if (selectedPlaceCategoryFilter == null) {
+            entries
+        } else {
+            entries.filter { (it.placeCategory ?: "Home").equals(selectedPlaceCategoryFilter, ignoreCase = true) }
+        }
+    }
+
+    val locationFilteredCustomEntries = remember(allCustomEntries, selectedPlaceCategoryFilter) {
+        if (selectedPlaceCategoryFilter == null) {
+            allCustomEntries
+        } else {
+            allCustomEntries.filter { (it.placeCategory ?: "Home").equals(selectedPlaceCategoryFilter, ignoreCase = true) }
+        }
+    }
+
+    // 2. Filtered totals for Mantra Selection Grid & Banner
+    val filteredGayatriLifetimeTotal = remember(locationFilteredGayatriEntries, selectedPlaceCategoryFilter, stats.lifetimeTotal) {
+        if (selectedPlaceCategoryFilter == null) {
+            stats.lifetimeTotal
+        } else {
+            locationFilteredGayatriEntries.sumOf { it.dailyTotal.toLong() }
+        }
+    }
+
+    val filteredPracticeTotals = remember(locationFilteredCustomEntries, selectedPlaceCategoryFilter, practiceTotals, allPractices) {
+        if (selectedPlaceCategoryFilter == null) {
+            practiceTotals
+        } else {
+            allPractices.associate { practice ->
+                practice.id to locationFilteredCustomEntries.filter { it.practiceId == practice.id }.sumOf { it.dailyTotal }
+            }
+        }
+    }
+
+    val filteredCombinedLifetimeTotal = remember(selectedPlaceCategoryFilter, combinedLifetimeTotal, filteredGayatriLifetimeTotal, filteredPracticeTotals, allPractices) {
+        if (selectedPlaceCategoryFilter == null) {
+            combinedLifetimeTotal
+        } else {
+            filteredGayatriLifetimeTotal + allPractices.filter { it.id != GAYATRI_PRACTICE_ID }.sumOf { (filteredPracticeTotals[it.id] ?: 0).toLong() }
+        }
+    }
+
+    // 3. Filtered Lookup Maps for Calendar (respects active location filter)
+    val gayatriEntriesMap = remember(locationFilteredGayatriEntries) {
+        locationFilteredGayatriEntries.associateBy { it.date }
     }
     
-    val customEntriesMap = remember(allCustomEntries) {
-        allCustomEntries.associateBy { it.practiceId to it.date }
+    val customEntriesMap = remember(locationFilteredCustomEntries) {
+        locationFilteredCustomEntries.associateBy { it.practiceId to it.date }
     }
     
-    val combinedDailyTotalsMap = remember(entries, allCustomEntries) {
+    val combinedDailyTotalsMap = remember(locationFilteredGayatriEntries, locationFilteredCustomEntries) {
         val map = mutableMapOf<String, Int>()
-        entries.forEach { entry ->
+        locationFilteredGayatriEntries.forEach { entry ->
             map[entry.date] = (map[entry.date] ?: 0) + entry.dailyTotal
         }
-        allCustomEntries.forEach { entry ->
+        locationFilteredCustomEntries.forEach { entry ->
             map[entry.date] = (map[entry.date] ?: 0) + entry.dailyTotal
         }
         map
     }
 
-    val monthAnalyticsList = remember(selectedMantraId, entries, allCustomEntries) {
+    val monthAnalyticsList = remember(selectedMantraId, locationFilteredGayatriEntries, locationFilteredCustomEntries) {
         if (selectedMantraId == null) return@remember emptyList<MonthAnalytics>()
         val dailyTotals = mutableListOf<Pair<String, Int>>()
         if (selectedMantraId == GAYATRI_PRACTICE_ID) {
-            entries.forEach { entry ->
+            locationFilteredGayatriEntries.forEach { entry ->
                 if (entry.dailyTotal > 0) {
                     dailyTotals.add(entry.date to entry.dailyTotal)
                 }
             }
         } else {
-            allCustomEntries.forEach { entry ->
+            locationFilteredCustomEntries.forEach { entry ->
                 if (entry.practiceId == selectedMantraId && entry.dailyTotal > 0) {
                     dailyTotals.add(entry.date to entry.dailyTotal)
                 }
@@ -288,29 +332,37 @@ fun HistoryScreen(
                 )
             }
 
-            // TOP HORIZONTAL BANNER (Combined History)
+            // 1. ALL JAPAS TOGETHER — retain existing aggregate japa summary and its functionality
             item {
                 CombinedHistoryBanner(
-                    combinedLifetimeTotal = combinedLifetimeTotal,
+                    combinedLifetimeTotal = filteredCombinedLifetimeTotal,
                     isSelected = selectedMantraId == null,
                     onClick = { selectedMantraId = null }
                 )
             }
 
-            // MANTRA BLOCKS (2 Columns Grid)
+            // 2. LOCATION-BASED FILTERS — provided immediately above mantra filters
+            item {
+                PlaceCategoryFilterRow(
+                    selectedPlaceCategoryFilter = selectedPlaceCategoryFilter,
+                    onSelectFilter = { selectedPlaceCategoryFilter = it }
+                )
+            }
+
+            // 3. MANTRA-BASED FILTERS — provided immediately below location filters
             item {
                 MantraSelectionGrid(
                     selectedMantraId = selectedMantraId,
                     gayatriName = gayatriName,
                     gayatriColor = gayatriColor,
-                    gayatriLifetimeTotal = stats.lifetimeTotal,
+                    gayatriLifetimeTotal = filteredGayatriLifetimeTotal,
                     allPractices = allPractices,
-                    practiceTotals = practiceTotals,
+                    practiceTotals = filteredPracticeTotals,
                     onSelectMantra = { selectedMantraId = it }
                 )
             }
 
-            // 1. STATS SECTION (AT THE TOP, ABOVE CALENDAR)
+            // STATS SECTION (when a mantra is selected) or Hint Card
             if (selectedMantraId != null) {
                 val currentMonthStr = String.format(Locale.US, "%04d-%02d", currentYear, currentMonth)
                 val activeMonthStats = monthAnalyticsList.find { it.monthStr == currentMonthStr }
@@ -385,7 +437,7 @@ fun HistoryScreen(
                 }
             }
 
-            // 2. CALENDAR SECTION (IN THE MIDDLE)
+            // 4. CALENDAR WITH FILTERED JAPA DATA (Filtered by location and/or mantra)
             item {
                 Text(
                     text = if (selectedMantraId == null) "COMBINED PRACTICE CALENDAR" else "PRACTICE CALENDAR",
@@ -406,44 +458,12 @@ fun HistoryScreen(
                     currentCalendar = currentCalendar,
                     onCalendarChange = { currentCalendarState.value = it },
                     onDateClick = { clickedDate ->
-                        val mId = selectedMantraId
-                        if (mId == null) {
-                            selectedSummaryDate = clickedDate
-                        } else if (mId == GAYATRI_PRACTICE_ID) {
-                            val existing = gayatriEntriesMap[clickedDate]
-                            selectedEntryToEdit = existing ?: JapaEntry(
-                                date = clickedDate,
-                                pratahSandhyaCount = 0,
-                                madhyahnikaSandhyaCount = 0,
-                                sayamSandhyaCount = 0,
-                                pratahPunascharanaCount = 0,
-                                madhyahnikaPunascharanaCount = 0,
-                                sayamPunascharanaCount = 0,
-                                updatedAt = ""
-                            )
-                        } else {
-                            val practice = allPractices.find { it.id == mId }
-                            if (practice != null) {
-                                val existing = customEntriesMap[mId to clickedDate]
-                                selectedCustomEntryToEdit = (existing ?: CustomPracticeEntry(
-                                    practiceId = mId,
-                                    date = clickedDate,
-                                    count = 0,
-                                    morningCount = 0,
-                                    afternoonCount = 0,
-                                    eveningCount = 0,
-                                    morningPunasCount = 0,
-                                    afternoonPunasCount = 0,
-                                    eveningPunasCount = 0,
-                                    updatedAt = ""
-                                )) to practice
-                            }
-                        }
+                        selectedSummaryDate = clickedDate
                     }
                 )
             }
 
-            // 3. TREND / BAR CHART SECTION (AT THE BOTTOM)
+            // 5. TREND / BAR CHART SECTION (when mantra selected)
             if (selectedMantraId != null && monthAnalyticsList.isNotEmpty()) {
                 item {
                     Spacer(modifier = Modifier.height(16.dp))
@@ -454,7 +474,7 @@ fun HistoryScreen(
                 }
             }
 
-            // 4. PRACTICE LOCATIONS BREAKDOWN SECTION
+            // 6. PRACTICE LOCATIONS BREAKDOWN SECTION
             if (locationStats.first.isNotEmpty()) {
                 item {
                     Spacer(modifier = Modifier.height(8.dp))
@@ -466,14 +486,6 @@ fun HistoryScreen(
                         }
                     )
                 }
-            }
-
-            // 5. FILTER BY CATEGORY CHIPS
-            item {
-                PlaceCategoryFilterRow(
-                    selectedPlaceCategoryFilter = selectedPlaceCategoryFilter,
-                    onSelectFilter = { selectedPlaceCategoryFilter = it }
-                )
             }
 
             // 6. PRACTICE LOG ENTRIES SECTION
@@ -622,7 +634,17 @@ fun HistoryScreen(
             gayatriEntry = gayatriEntry,
             allPractices = allPractices,
             customEntries = customEntriesForDate,
+            filterMantraId = selectedMantraId,
+            filterPlaceCategory = selectedPlaceCategoryFilter,
             onEditLocation = { locationEditDate = date },
+            onEditGayatri = { entry ->
+                selectedEntryToEdit = entry
+                selectedSummaryDate = null
+            },
+            onEditCustom = { entry, practice ->
+                selectedCustomEntryToEdit = entry to practice
+                selectedSummaryDate = null
+            },
             onDismiss = { selectedSummaryDate = null }
         )
     }

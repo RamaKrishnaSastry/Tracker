@@ -271,13 +271,18 @@ class JapaViewModel(application: Application) : AndroidViewModel(application) {
 
 
         viewModelScope.launch {
-            // Postpone initial sync so homescreen loads instantly and feels completely lag-free
-            delay(3500)
+            // Postpone initial check so homescreen loads instantly and feels completely lag-free
+            delay(3000)
             if (prefs.isOnboarded()) {
                 authManager.checkCurrentSession {
-                    viewModelScope.launch {
-                        repository.syncWithCloud()
-                    }
+                    checkForRemoteChanges()
+                }
+            }
+            // Periodic foreground detection for changes originating on another device
+            while (true) {
+                delay(30000)
+                if (prefs.isOnboarded() && authManager.userProfile.value != null) {
+                    repository.checkForRemoteChanges()
                 }
             }
         }
@@ -332,6 +337,14 @@ class JapaViewModel(application: Application) : AndroidViewModel(application) {
                         setUserName(profile.displayName)
                     }
                 }
+            }
+        }
+    }
+
+    fun checkForRemoteChanges(force: Boolean = false) {
+        viewModelScope.launch {
+            if (prefs.isOnboarded() && authManager.userProfile.value != null) {
+                repository.checkForRemoteChanges(force)
             }
         }
     }

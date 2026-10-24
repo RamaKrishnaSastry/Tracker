@@ -326,7 +326,7 @@ fun HistoryBarTrendChart(last12Months: List<MonthAnalytics>, activeColor: Color)
                 Text(
                     text = formatCountCompact(month.totalCount.toInt()),
                     style = MaterialTheme.typography.labelSmall.copy(
-                        fontSize = 11.sp,
+                        fontSize = 10.sp,
                         fontWeight = FontWeight.ExtraBold,
                         letterSpacing = (-0.2).sp
                     ),
@@ -338,7 +338,8 @@ fun HistoryBarTrendChart(last12Months: List<MonthAnalytics>, activeColor: Color)
                 Box(
                     modifier = Modifier
                         .height(90.dp)
-                        .width(20.dp)
+                        .fillMaxWidth(0.55f)
+                        .widthIn(min = 8.dp, max = 22.dp)
                         .clip(RoundedCornerShape(topStart = 8.dp, topEnd = 8.dp, bottomStart = 4.dp, bottomEnd = 4.dp))
                         .background(activeColor.copy(alpha = 0.08f)),
                     contentAlignment = Alignment.BottomCenter
@@ -356,7 +357,7 @@ fun HistoryBarTrendChart(last12Months: List<MonthAnalytics>, activeColor: Color)
                 Text(
                     text = displayMonth,
                     style = MaterialTheme.typography.labelSmall.copy(
-                        fontSize = 11.sp,
+                        fontSize = 10.sp,
                         fontWeight = FontWeight.Bold
                     ),
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.75f),

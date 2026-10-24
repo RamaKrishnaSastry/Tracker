@@ -15,6 +15,15 @@ import java.io.IOException
 import java.util.zip.GZIPInputStream
 import java.util.zip.GZIPOutputStream
 
+data class DriveFileMetadata(
+    val id: String,
+    val version: Long = 0L,
+    val md5Checksum: String? = null,
+    val modifiedTime: String? = null,
+    val authorDeviceId: String? = null,
+    val changeToken: String? = null
+)
+
 class GoogleDriveSyncService {
     private val TAG = "GoogleDriveSyncService"
     private val client = OkHttpClient()
@@ -72,6 +81,84 @@ class GoogleDriveSyncService {
             }
         } catch (e: Exception) {
             Log.e(TAG, "Exception searching for backup file: ${e.message}", e)
+        }
+        return null
+    }
+
+    /**
+     * Fetches lightweight metadata (version, md5Checksum, modifiedTime, appProperties)
+     * without downloading the full data payload.
+     */
+    fun fetchRemoteMetadata(accessToken: String): DriveFileMetadata? {
+        val url = "https://www.googleapis.com/drive/v3/files?spaces=appDataFolder&q=name%3D%27gayatri_japa_data.json%27&fields=files(id,version,modifiedTime,md5Checksum,appProperties)"
+        val request = Request.Builder()
+            .url(url)
+            .addHeader("Authorization", "Bearer $accessToken")
+            .build()
+
+        try {
+            client.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) {
+                    Log.e(TAG, "fetchRemoteMetadata failed with status ${response.code}")
+                    return null
+                }
+                val bodyStr = response.body?.string() ?: return null
+                val json = JSONObject(bodyStr)
+                val files = json.optJSONArray("files") ?: return null
+                if (files.length() > 0) {
+                    val f = files.getJSONObject(0)
+                    val appProps = f.optJSONObject("appProperties")
+                    return DriveFileMetadata(
+                        id = f.optString("id", ""),
+                        version = f.optLong("version", 0L),
+                        md5Checksum = if (f.has("md5Checksum")) f.getString("md5Checksum") else null,
+                        modifiedTime = if (f.has("modifiedTime")) f.getString("modifiedTime") else null,
+                        authorDeviceId = if (appProps != null && appProps.has("authorDeviceId")) appProps.getString("authorDeviceId") else null,
+                        changeToken = if (appProps != null && appProps.has("changeToken")) appProps.getString("changeToken") else null
+                    )
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Exception in fetchRemoteMetadata: ${e.message}", e)
+        }
+        return null
+    }
+
+    /**
+     * Updates file metadata with appProperties (e.g. author device ID and change token).
+     */
+    fun updateFileMetadataProperties(accessToken: String, fileId: String, authorDeviceId: String, changeToken: String): DriveFileMetadata? {
+        val url = "https://www.googleapis.com/drive/v3/files/$fileId?fields=id,version,modifiedTime,md5Checksum,appProperties"
+        val props = JSONObject()
+            .put("authorDeviceId", authorDeviceId)
+            .put("changeToken", changeToken)
+        val bodyJson = JSONObject()
+            .put("appProperties", props)
+            .toString()
+        val body = bodyJson.toRequestBody("application/json".toMediaTypeOrNull())
+        val request = Request.Builder()
+            .url(url)
+            .addHeader("Authorization", "Bearer $accessToken")
+            .patch(body)
+            .build()
+        try {
+            client.newCall(request).execute().use { response ->
+                if (response.isSuccessful) {
+                    val bodyStr = response.body?.string() ?: return null
+                    val f = JSONObject(bodyStr)
+                    val appProps = f.optJSONObject("appProperties")
+                    return DriveFileMetadata(
+                        id = f.optString("id", fileId),
+                        version = f.optLong("version", 0L),
+                        md5Checksum = if (f.has("md5Checksum")) f.getString("md5Checksum") else null,
+                        modifiedTime = if (f.has("modifiedTime")) f.getString("modifiedTime") else null,
+                        authorDeviceId = if (appProps != null && appProps.has("authorDeviceId")) appProps.getString("authorDeviceId") else authorDeviceId,
+                        changeToken = if (appProps != null && appProps.has("changeToken")) appProps.getString("changeToken") else changeToken
+                    )
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error updating metadata properties: ${e.message}", e)
         }
         return null
     }
@@ -142,16 +229,17 @@ class GoogleDriveSyncService {
     }
 
     /**
-     * Uploads the local repository state into Google Drive appDataFolder.
+     * Uploads the local repository state into Google Drive appDataFolder,
+     * tags it with the author device ID, and returns the updated metadata.
      */
-    fun saveCloudData(accessToken: String, payload: SyncPayload): Boolean {
+    fun saveCloudDataWithMetadata(accessToken: String, payload: SyncPayload, authorDeviceId: String): DriveFileMetadata? {
         var fileId = findBackupFileId(accessToken)
         if (fileId == null) {
             Log.d(TAG, "No existing backup found. Creating metadata file...")
             fileId = createMetadataPlaceholder(accessToken)
             if (fileId == null) {
                 Log.e(TAG, "Unable to create backup metadata descriptor!")
-                return false
+                return null
             }
         }
 
@@ -170,7 +258,13 @@ class GoogleDriveSyncService {
             client.newCall(request).execute().use { response ->
                 if (response.isSuccessful) {
                     Log.d(TAG, "Uploaded japa backup successfully.")
-                    return true
+                    val changeToken = java.util.UUID.randomUUID().toString()
+                    return if (authorDeviceId.isNotEmpty()) {
+                        updateFileMetadataProperties(accessToken, fileId, authorDeviceId, changeToken)
+                            ?: fetchRemoteMetadata(accessToken)
+                    } else {
+                        fetchRemoteMetadata(accessToken)
+                    }
                 } else {
                     Log.e(TAG, "Upload failure: code ${response.code} -> ${response.body?.string()}")
                 }
@@ -180,7 +274,14 @@ class GoogleDriveSyncService {
         } catch (e: Exception) {
             Log.e(TAG, "General exception during upload: ${e.message}", e)
         }
-        return false
+        return null
+    }
+
+    /**
+     * Uploads the local repository state into Google Drive appDataFolder.
+     */
+    fun saveCloudData(accessToken: String, payload: SyncPayload): Boolean {
+        return saveCloudDataWithMetadata(accessToken, payload, "") != null
     }
 
     /**

@@ -52,7 +52,9 @@ class JapaRepository(
         cm.registerNetworkCallback(networkRequest, object : ConnectivityManager.NetworkCallback() {
             override fun onAvailable(network: android.net.Network) {
                 if (authManager.userProfile.value != null) {
-                    syncWithCloud(isLocalUpdate = true)
+                    scope.launch {
+                        checkForRemoteChanges()
+                    }
                 }
             }
             override fun onLost(network: android.net.Network) {
@@ -667,20 +669,32 @@ class JapaRepository(
                         customPractices = syncCustomPractices,
                         customEntries = syncCustomEntries
                     )
-                    val isSuccess = syncService.saveCloudData(token, payload)
-                    if (isSuccess) {
+                    val myDeviceId = prefs.getDeviceId()
+                    val uploadedMeta = syncService.saveCloudDataWithMetadata(token, payload, myDeviceId)
+                    if (uploadedMeta != null) {
+                        prefs.setLastProcessedRemoteVersion(uploadedMeta.version)
+                        uploadedMeta.md5Checksum?.let { prefs.setLastProcessedRemoteChecksum(it) }
+                        uploadedMeta.modifiedTime?.let { prefs.setLastRemoteModifiedTime(it) }
+                        prefs.setLastRemoteAuthorDeviceId(myDeviceId)
                         val localTimeDisp = SimpleDateFormat("MMM dd, yyyy HH:mm:ss", Locale.getDefault()).format(Date())
                         prefs.setLastSync(localTimeDisp)
                         prefs.setLastSyncTimeMs(System.currentTimeMillis())
                         _lastSyncError.value = null
                         _syncState.value = SyncState.SYNCED
-                        Log.d(TAG, "Backup synced successfully at $localTimeDisp")
+                        Log.d(TAG, "Backup synced and metadata updated successfully at $localTimeDisp (version: ${uploadedMeta.version})")
                     } else {
                         _lastSyncError.value = "Failed to upload to Google Drive. Drive API might not be enabled."
                         _syncState.value = SyncState.ERROR
                         Log.e(TAG, "Cloud save task failed.")
                     }
                 } else {
+                    val meta = syncService.fetchRemoteMetadata(token)
+                    if (meta != null) {
+                        prefs.setLastProcessedRemoteVersion(meta.version)
+                        meta.md5Checksum?.let { prefs.setLastProcessedRemoteChecksum(it) }
+                        meta.modifiedTime?.let { prefs.setLastRemoteModifiedTime(it) }
+                        meta.authorDeviceId?.let { prefs.setLastRemoteAuthorDeviceId(it) }
+                    }
                     val localTimeDisp = SimpleDateFormat("MMM dd, yyyy HH:mm:ss", Locale.getDefault()).format(Date())
                     prefs.setLastSync(localTimeDisp)
                     prefs.setLastSyncTimeMs(System.currentTimeMillis())
@@ -694,6 +708,57 @@ class JapaRepository(
                 _syncState.value = SyncState.ERROR
                 Log.e(TAG, "Exception during background synchronization process: ${e.message}", e)
             }
+        }
+    }
+
+    private val checkRemoteMutex = kotlinx.coroutines.sync.Mutex()
+
+    /**
+     * Checks if remote backup changed on another device using lightweight metadata.
+     * Avoids downloading the full database payload unless an actual remote change occurred.
+     */
+    suspend fun checkForRemoteChanges(force: Boolean = false): Boolean = withContext(Dispatchers.IO) {
+        if (!checkRemoteMutex.tryLock()) {
+            Log.d(TAG, "checkForRemoteChanges skipped: check already in progress.")
+            return@withContext false
+        }
+        try {
+            if (authManager.userProfile.value == null || !isNetworkAvailable()) {
+                return@withContext false
+            }
+            val token = authManager.getAccessToken() ?: return@withContext false
+            val metadata = syncService.fetchRemoteMetadata(token) ?: return@withContext false
+
+            val myDeviceId = prefs.getDeviceId()
+            val lastVersion = prefs.getLastProcessedRemoteVersion()
+            val lastChecksum = prefs.getLastProcessedRemoteChecksum()
+            val lastModified = prefs.getLastRemoteModifiedTime()
+
+            val isAuthorSelf = !metadata.authorDeviceId.isNullOrEmpty() && metadata.authorDeviceId == myDeviceId
+            val hasNewerVersion = metadata.version > lastVersion
+            val hasDifferentChecksum = !metadata.md5Checksum.isNullOrEmpty() && metadata.md5Checksum != lastChecksum
+            val hasDifferentModifiedTime = !metadata.modifiedTime.isNullOrEmpty() && metadata.modifiedTime != lastModified
+
+            // If change is authored by this device and version is not ahead, skip downloading
+            if (isAuthorSelf && !hasNewerVersion && !force) {
+                prefs.setLastProcessedRemoteVersion(metadata.version)
+                metadata.md5Checksum?.let { prefs.setLastProcessedRemoteChecksum(it) }
+                metadata.modifiedTime?.let { prefs.setLastRemoteModifiedTime(it) }
+                return@withContext false
+            }
+
+            if (force || hasNewerVersion || hasDifferentChecksum || hasDifferentModifiedTime || lastVersion == 0L) {
+                Log.d(TAG, "Remote change detected! version: ${metadata.version} (last: $lastVersion), author: ${metadata.authorDeviceId}. Triggering sync...")
+                syncWithCloud(isLocalUpdate = false)
+                return@withContext true
+            }
+
+            return@withContext false
+        } catch (e: Exception) {
+            Log.e(TAG, "Exception in checkForRemoteChanges: ${e.message}", e)
+            return@withContext false
+        } finally {
+            checkRemoteMutex.unlock()
         }
     }
 

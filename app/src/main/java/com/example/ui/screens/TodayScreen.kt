@@ -223,31 +223,60 @@ fun TodayScreen(
             ) {
             Spacer(modifier = Modifier.height(16.dp))
             // Practice Selector Top Bar
-            Box(
+            Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(bottom = 12.dp),
-                contentAlignment = Alignment.Center
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
             ) {
+                var showAddPracticeDialog by remember { mutableStateOf(false) }
+
+                // Small, clean plus (+) icon in the top-left corner
+                IconButton(
+                    onClick = { showAddPracticeDialog = true },
+                    modifier = Modifier
+                        .size(40.dp)
+                        .testTag("today_add_mantra_button")
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Add,
+                        contentDescription = "Add Mantra",
+                        tint = activeMantraColor.copy(alpha = 0.85f),
+                        modifier = Modifier.size(22.dp)
+                    )
+                }
+
+                if (showAddPracticeDialog) {
+                    AddMantraTemplateDialog(
+                        viewModel = viewModel,
+                        onDismiss = { showAddPracticeDialog = false },
+                        onCreated = { newId ->
+                            viewModel.setActivePractice(newId)
+                            showAddPracticeDialog = false
+                        }
+                    )
+                }
+
                 var expanded by remember { mutableStateOf(false) }
                 var showEditDialog by remember { mutableStateOf(false) }
-                var showGayatriEditDialog by remember { mutableStateOf(false) }
 
-                // Centered Title Area
+                // Centered Title Area with responsive constraints
                 Box(
-                    modifier = Modifier
-                        .padding(horizontal = 48.dp) // Leave space for icons on sides
+                    modifier = Modifier.weight(1f),
+                    contentAlignment = Alignment.Center
                 ) {
                     TextButton(
                         onClick = { expanded = true },
-                        colors = ButtonDefaults.textButtonColors(contentColor = activeMantraColor)
+                        colors = ButtonDefaults.textButtonColors(contentColor = activeMantraColor),
+                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
                     ) {
                         Text(
                             text = currentName,
-                            style = MaterialTheme.typography.headlineLarge.copy(
+                            style = MaterialTheme.typography.headlineMedium.copy(
                                 fontWeight = FontWeight.ExtraBold,
                                 fontFamily = androidx.compose.ui.text.font.FontFamily.Serif,
-                                letterSpacing = 1.sp
+                                letterSpacing = 0.5.sp
                             ),
                             maxLines = 1,
                             overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
@@ -292,25 +321,25 @@ fun TodayScreen(
                         }
 
                         Divider()
-                        var showAddDialog by remember { mutableStateOf(false) }
+                        var showAddDialogFromMenu by remember { mutableStateOf(false) }
                         DropdownMenuItem(
                             text = { Text("Add Custom Practice...", color = MaterialTheme.colorScheme.primary) },
                             onClick = {
-                                showAddDialog = true
+                                showAddDialogFromMenu = true
                             },
                             leadingIcon = { Icon(Icons.Default.Add, null, tint = MaterialTheme.colorScheme.primary) }
                         )
 
-                        if (showAddDialog) {
+                        if (showAddDialogFromMenu) {
                             AddMantraTemplateDialog(
                                 viewModel = viewModel,
                                 onDismiss = {
-                                    showAddDialog = false
+                                    showAddDialogFromMenu = false
                                     expanded = false
                                 },
                                 onCreated = { newId ->
                                     viewModel.setActivePractice(newId)
-                                    showAddDialog = false
+                                    showAddDialogFromMenu = false
                                     expanded = false
                                 }
                             )
@@ -318,16 +347,15 @@ fun TodayScreen(
                     }
                 }
 
-                // Settings icon on the right
+                // Settings icon on the right or balancing spacer
                 if (allPractices.any { it.id == activePracticeId }) {
                     IconButton(
                         onClick = {
                             showEditDialog = true
                         },
                         modifier = Modifier
-                            .align(Alignment.CenterEnd)
-                            .padding(end = 4.dp)
-                            .size(36.dp)
+                            .size(40.dp)
+                            .testTag("today_configure_mantra_button")
                     ) {
                         Icon(
                             imageVector = Icons.Default.Settings,
@@ -336,6 +364,8 @@ fun TodayScreen(
                             modifier = Modifier.size(20.dp)
                         )
                     }
+                } else {
+                    Spacer(modifier = Modifier.size(40.dp))
                 }
 
                 if (showEditDialog) {
@@ -358,59 +388,6 @@ fun TodayScreen(
                         )
                     }
                 }
-            }
-
-            // Practice Chips Quick-Switch Row
-            var showAddPracticeDialogFromChip by remember { mutableStateOf(false) }
-            LazyRow(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(bottom = 12.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                item {
-                    val isSelected = activePracticeId == com.example.ui.GAYATRI_PRACTICE_ID
-                    FilterChip(
-                        selected = isSelected,
-                        onClick = { viewModel.setActivePractice(com.example.ui.GAYATRI_PRACTICE_ID) },
-                        label = { Text(gayatriName, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal) },
-                        leadingIcon = if (isSelected) {
-                            { Icon(Icons.Default.Check, null, modifier = Modifier.size(16.dp)) }
-                        } else null
-                    )
-                }
-
-                items(allPractices.filter { it.id != com.example.ui.GAYATRI_PRACTICE_ID }) { practice ->
-                    val isSelected = activePracticeId == practice.id
-                    FilterChip(
-                        selected = isSelected,
-                        onClick = { viewModel.setActivePractice(practice.id) },
-                        label = { Text(practice.name, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal) },
-                        leadingIcon = if (isSelected) {
-                            { Icon(Icons.Default.Check, null, modifier = Modifier.size(16.dp)) }
-                        } else null
-                    )
-                }
-
-                item {
-                    AssistChip(
-                        onClick = { showAddPracticeDialogFromChip = true },
-                        label = { Text("Add Practice", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.SemiBold) },
-                        leadingIcon = { Icon(Icons.Default.Add, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(16.dp)) }
-                    )
-                }
-            }
-
-            if (showAddPracticeDialogFromChip) {
-                AddMantraTemplateDialog(
-                    viewModel = viewModel,
-                    onDismiss = { showAddPracticeDialogFromChip = false },
-                    onCreated = { newId ->
-                        viewModel.setActivePractice(newId)
-                        showAddPracticeDialogFromChip = false
-                    }
-                )
             }
             Text(
                 text = "Namaskaram, $userName",
@@ -774,38 +751,38 @@ fun SimplePracticeContent(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(vertical = 24.dp, horizontal = 0.dp),
+                        .padding(vertical = 16.dp, horizontal = 6.dp),
                     horizontalArrangement = Arrangement.SpaceEvenly,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     if (isPunascharanaEnabledForPractice) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.weight(1f)) {
-                            Text("TODAY'S JAPA", style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold, letterSpacing = 0.5.sp), color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f), textAlign = TextAlign.Center)
-                            Spacer(modifier = Modifier.height(8.dp))
+                        Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.weight(1f).padding(horizontal = 2.dp)) {
+                            Text("TODAY'S JAPA", style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold, letterSpacing = 0.3.sp), color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f), textAlign = TextAlign.Center, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            Spacer(modifier = Modifier.height(6.dp))
                             AnimatedCounterText(value = totalToday, style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold, fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace), color = mantraColor)
                         }
-                        Box(modifier = Modifier.width(1.dp).height(40.dp).background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.15f)))
-                        Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.weight(1f)) {
-                            Text("LIFETIME TOTAL", style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold, letterSpacing = 0.5.sp), color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f), textAlign = TextAlign.Center)
-                            Spacer(modifier = Modifier.height(8.dp))
+                        Box(modifier = Modifier.width(1.dp).height(36.dp).background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.15f)))
+                        Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.weight(1f).padding(horizontal = 2.dp)) {
+                            Text("LIFETIME TOTAL", style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold, letterSpacing = 0.3.sp), color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f), textAlign = TextAlign.Center, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            Spacer(modifier = Modifier.height(6.dp))
                             AnimatedCounterLongText(value = lifetimeTotal, style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold, fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace), color = mantraColor)
                         }
-                        Box(modifier = Modifier.width(1.dp).height(40.dp).background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.15f)))
-                        Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.weight(1f)) {
-                            Text("PUNASCHARANA", style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold, letterSpacing = 0.5.sp), color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f), textAlign = TextAlign.Center)
-                            Spacer(modifier = Modifier.height(8.dp))
+                        Box(modifier = Modifier.width(1.dp).height(36.dp).background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.15f)))
+                        Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.weight(1f).padding(horizontal = 2.dp)) {
+                            Text("PUNASCHARANA", style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold, letterSpacing = 0.3.sp), color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f), textAlign = TextAlign.Center, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            Spacer(modifier = Modifier.height(6.dp))
                             AnimatedCounterLongText(value = lifetimePunasTotal.toLong(), style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold, fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace), color = mantraColor)
                         }
                     } else {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.weight(1f)) {
-                            Text("TODAY'S JAPA", style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold, letterSpacing = 1.sp), color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f), textAlign = TextAlign.Center)
-                            Spacer(modifier = Modifier.height(8.dp))
+                        Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.weight(1f).padding(horizontal = 4.dp)) {
+                            Text("TODAY'S JAPA", style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold, letterSpacing = 0.5.sp), color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f), textAlign = TextAlign.Center, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            Spacer(modifier = Modifier.height(6.dp))
                             AnimatedCounterText(value = totalToday, style = MaterialTheme.typography.headlineLarge.copy(fontWeight = FontWeight.Bold, fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace), color = mantraColor)
                         }
-                        Box(modifier = Modifier.width(1.dp).height(40.dp).background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.15f)))
-                        Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.weight(1f)) {
-                            Text("LIFETIME TOTAL", style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold, letterSpacing = 1.sp), color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f), textAlign = TextAlign.Center)
-                            Spacer(modifier = Modifier.height(8.dp))
+                        Box(modifier = Modifier.width(1.dp).height(36.dp).background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.15f)))
+                        Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.weight(1f).padding(horizontal = 4.dp)) {
+                            Text("LIFETIME TOTAL", style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold, letterSpacing = 0.5.sp), color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f), textAlign = TextAlign.Center, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            Spacer(modifier = Modifier.height(6.dp))
                             AnimatedCounterLongText(value = lifetimeTotal, style = MaterialTheme.typography.headlineLarge.copy(fontWeight = FontWeight.Bold, fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace), color = mantraColor)
                         }
                     }
@@ -1046,8 +1023,8 @@ fun SimplePracticeContent(
                             },
                             modifier = Modifier
                                 .weight(1f)
-                                .padding(horizontal = 16.dp),
-                            textStyle = MaterialTheme.typography.displaySmall.copy(
+                                .padding(horizontal = 8.dp),
+                            textStyle = MaterialTheme.typography.headlineMedium.copy(
                                 textAlign = TextAlign.Center,
                                 fontWeight = FontWeight.Bold,
                                 fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace

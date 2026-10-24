@@ -234,7 +234,9 @@ fun JapaProgressCircle(
     modifier: Modifier = Modifier
 ) {
     Box(
-        modifier = modifier.size(100.dp),
+        modifier = modifier
+            .sizeIn(minWidth = 72.dp, minHeight = 72.dp, maxWidth = 100.dp, maxHeight = 100.dp)
+            .aspectRatio(1f),
         contentAlignment = Alignment.Center
     ) {
         androidx.compose.foundation.Canvas(modifier = Modifier.fillMaxSize()) {
@@ -315,11 +317,14 @@ fun AnimatedCounterText(
         transitionSpec = { fadeIn() togetherWith fadeOut() },
         label = "CounterAnimation"
     ) { targetValue ->
-        Text(
+        AutoResizedText(
             text = String.format(Locale.US, "%,d", targetValue),
             style = style,
             color = color,
-            modifier = modifier
+            modifier = modifier,
+            maxLines = 1,
+            minFontSize = 10.sp,
+            textAlign = TextAlign.Center
         )
     }
 }
@@ -336,11 +341,14 @@ fun AnimatedCounterLongText(
         transitionSpec = { fadeIn() togetherWith fadeOut() },
         label = "CounterLongAnimation"
     ) { targetValue ->
-        Text(
+        AutoResizedText(
             text = String.format(Locale.US, "%,d", targetValue),
             style = style,
             color = color,
-            modifier = modifier
+            modifier = modifier,
+            maxLines = 1,
+            minFontSize = 10.sp,
+            textAlign = TextAlign.Center
         )
     }
 }

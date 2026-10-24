@@ -13,19 +13,7 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
@@ -110,107 +98,115 @@ fun OnboardingScreen(
                             MaterialTheme.colorScheme.primary.copy(alpha = 0.05f)
                         )
                     )
-                )
+                ),
+            contentAlignment = Alignment.TopCenter
         ) {
-            AnimatedContent(
-                targetState = step,
-                transitionSpec = {
-                    slideInHorizontally { width -> width } + fadeIn() with
-                            slideOutHorizontally { width -> -width } + fadeOut()
-                },
-                label = "OnboardingStepTransition"
-            ) { targetStep ->
-                when (targetStep) {
-                    1 -> {
-                        // Welcome Screen
-                        Column(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .padding(24.dp)
-                                .verticalScroll(scrollState),
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.SpaceBetween
-                        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .widthIn(max = 560.dp)
+            ) {
+                AnimatedContent(
+                    targetState = step,
+                    transitionSpec = {
+                        slideInHorizontally { width -> width } + fadeIn() with
+                                slideOutHorizontally { width -> -width } + fadeOut()
+                    },
+                    label = "OnboardingStepTransition"
+                ) { targetStep ->
+                    when (targetStep) {
+                        1 -> {
+                            // Welcome Screen
                             Column(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .padding(24.dp)
+                                    .verticalScroll(scrollState),
                                 horizontalAlignment = Alignment.CenterHorizontally,
-                                modifier = Modifier.weight(1f, fill = false)
+                                verticalArrangement = Arrangement.SpaceBetween
                             ) {
-                                Spacer(modifier = Modifier.height(24.dp))
-                                Text(
-                                    text = "JapaMitra",
-                                    style = MaterialTheme.typography.displayMedium.copy(
-                                        fontFamily = androidx.compose.ui.text.font.FontFamily.Serif,
-                                        fontWeight = FontWeight.Bold,
-                                        letterSpacing = 2.sp
-                                    ),
-                                    color = MaterialTheme.colorScheme.primary,
-                                    textAlign = TextAlign.Center
-                                )
-                                Spacer(modifier = Modifier.height(8.dp))
-                                Text(
-                                    text = "Your Spiritual Companion",
-                                    style = MaterialTheme.typography.titleMedium.copy(
-                                        letterSpacing = 4.sp,
-                                        fontWeight = FontWeight.Light
-                                    ),
-                                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f),
-                                    textAlign = TextAlign.Center
-                                )
-                                Spacer(modifier = Modifier.height(32.dp))
-
-                                // Render our custom illustration
-                                Box(
-                                    modifier = Modifier
-                                        .size(240.dp)
-                                        .clip(RoundedCornerShape(24.dp))
-                                        .background(Color.White)
-                                        .padding(4.dp),
-                                    contentAlignment = Alignment.Center
+                                Column(
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    modifier = Modifier.weight(1f, fill = false)
                                 ) {
-                                    Image(
-                                        painter = painterResource(id = R.drawable.gayatri_meditation),
-                                        contentDescription = "Meditative Gayatri Rising Sun",
-                                        modifier = Modifier.fillMaxSize().clip(RoundedCornerShape(20.dp)),
-                                        contentScale = ContentScale.Crop
-                                    )
-                                }
-
-                                Spacer(modifier = Modifier.height(32.dp))
-                                Text(
-                                    text = "Track your daily mantra counts quietly, privately, and distraction-free. Organize all your spiritual practices in one place with seamless cloud backup.",
-                                    style = MaterialTheme.typography.bodyLarge,
-                                    textAlign = TextAlign.Center,
-                                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.8f),
-                                    modifier = Modifier.padding(horizontal = 8.dp)
-                                )
-                            }
-
-                            Column(
-                                horizontalAlignment = Alignment.CenterHorizontally,
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Button(
-                                    onClick = { viewModel.setOnboardingStep(2) },
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .height(56.dp)
-                                        .testTag("onboarding_continue_button"),
-                                    shape = RoundedCornerShape(16.dp),
-                                    colors = ButtonDefaults.buttonColors(
-                                        containerColor = MaterialTheme.colorScheme.primary
-                                    )
-                                ) {
+                                    Spacer(modifier = Modifier.height(16.dp))
                                     Text(
-                                        "Begin Setup",
-                                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
+                                        text = "JapaMitra",
+                                        style = MaterialTheme.typography.displayMedium.copy(
+                                            fontFamily = androidx.compose.ui.text.font.FontFamily.Serif,
+                                            fontWeight = FontWeight.Bold,
+                                            letterSpacing = 2.sp
+                                        ),
+                                        color = MaterialTheme.colorScheme.primary,
+                                        textAlign = TextAlign.Center
                                     )
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    Icon(Icons.Default.ArrowForward, contentDescription = null)
+                                    Spacer(modifier = Modifier.height(6.dp))
+                                    Text(
+                                        text = "Your Spiritual Companion",
+                                        style = MaterialTheme.typography.titleMedium.copy(
+                                            letterSpacing = 3.sp,
+                                            fontWeight = FontWeight.Light
+                                        ),
+                                        color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f),
+                                        textAlign = TextAlign.Center
+                                    )
+                                    Spacer(modifier = Modifier.height(20.dp))
+
+                                    // Render our custom illustration
+                                    Box(
+                                        modifier = Modifier
+                                            .sizeIn(minWidth = 140.dp, minHeight = 140.dp, maxWidth = 220.dp, maxHeight = 220.dp)
+                                            .aspectRatio(1f)
+                                            .fillMaxWidth(0.55f)
+                                            .clip(RoundedCornerShape(24.dp))
+                                            .background(Color.White)
+                                            .padding(4.dp),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Image(
+                                            painter = painterResource(id = R.drawable.gayatri_meditation),
+                                            contentDescription = "Meditative Gayatri Rising Sun",
+                                            modifier = Modifier.fillMaxSize().clip(RoundedCornerShape(20.dp)),
+                                            contentScale = ContentScale.Crop
+                                        )
+                                    }
+
+                                    Spacer(modifier = Modifier.height(20.dp))
+                                    Text(
+                                        text = "Track your daily mantra counts quietly, privately, and distraction-free. Organize all your spiritual practices in one place with seamless cloud backup.",
+                                        style = MaterialTheme.typography.bodyLarge,
+                                        textAlign = TextAlign.Center,
+                                        color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.8f),
+                                        modifier = Modifier.padding(horizontal = 8.dp)
+                                    )
                                 }
-                                Spacer(modifier = Modifier.height(24.dp))
+
+                                Column(
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Button(
+                                        onClick = { viewModel.setOnboardingStep(2) },
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .height(56.dp)
+                                            .testTag("onboarding_continue_button"),
+                                        shape = RoundedCornerShape(16.dp),
+                                        colors = ButtonDefaults.buttonColors(
+                                            containerColor = MaterialTheme.colorScheme.primary
+                                        )
+                                    ) {
+                                        Text(
+                                            "Begin Setup",
+                                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
+                                        )
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Icon(Icons.Default.ArrowForward, contentDescription = null)
+                                    }
+                                    Spacer(modifier = Modifier.height(16.dp))
+                                }
                             }
                         }
-                    }
 
                     2 -> {
                         // Google Authenticate Step
@@ -450,6 +446,7 @@ fun OnboardingScreen(
             }
         }
     }
+}
 }
 
 @Composable

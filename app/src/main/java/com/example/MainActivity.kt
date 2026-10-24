@@ -33,6 +33,11 @@ import com.example.ui.theme.MyApplicationTheme
 class MainActivity : ComponentActivity() {
     private val viewModel: JapaViewModel by viewModels()
 
+    override fun onResume() {
+        super.onResume()
+        viewModel.checkForRemoteChanges()
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         
@@ -88,47 +93,54 @@ fun MainDashboardShell(viewModel: JapaViewModel) {
                 color = MaterialTheme.colorScheme.surface,
                 modifier = Modifier.fillMaxWidth().testTag("app_navigation_bar")
             ) {
-                Row(
-                    modifier = Modifier
-                        .windowInsetsPadding(WindowInsets.navigationBars)
-                        .fillMaxWidth()
-                        .height(64.dp), // Reduced height from typical 80dp
-                    horizontalArrangement = Arrangement.SpaceAround,
-                    verticalAlignment = Alignment.CenterVertically
+                Box(
+                    modifier = Modifier.fillMaxWidth(),
+                    contentAlignment = Alignment.Center
                 ) {
-                    val tabs = listOf(
-                        Triple(0, Icons.Default.CalendarToday, "Today"),
-                        Triple(1, Icons.Default.History, "History"),
-                        Triple(2, Icons.Default.Settings, "Settings")
-                    )
+                    Row(
+                        modifier = Modifier
+                            .windowInsetsPadding(WindowInsets.navigationBars)
+                            .fillMaxWidth()
+                            .widthIn(max = 640.dp)
+                            .height(64.dp),
+                        horizontalArrangement = Arrangement.SpaceAround,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        val tabs = listOf(
+                            Triple(0, Icons.Default.CalendarToday, "Today"),
+                            Triple(1, Icons.Default.History, "History"),
+                            Triple(2, Icons.Default.Settings, "Settings")
+                        )
 
-                    val testTags = listOf("nav_tab_today", "nav_tab_history", "nav_tab_settings")
+                        val testTags = listOf("nav_tab_today", "nav_tab_history", "nav_tab_settings")
 
-                    for (i in tabs.indices) {
-                        val (index, icon, label) = tabs[i]
-                        val selected = activeTab == index
-                        Column(
-                            modifier = Modifier
-                                .weight(1f)
-                                .clickable { activeTab = index }
-                                .testTag(testTags[i])
-                                .padding(vertical = 4.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.Center
-                        ) {
-                            Icon(
-                                icon,
-                                contentDescription = label,
-                                tint = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
-                                modifier = Modifier.size(24.dp)
-                            )
-                            Text(
-                                text = label,
-                                style = MaterialTheme.typography.labelSmall.copy(
-                                    fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal
-                                ),
-                                color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
-                            )
+                        for (i in tabs.indices) {
+                            val (index, icon, label) = tabs[i]
+                            val selected = activeTab == index
+                            Column(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .fillMaxHeight()
+                                    .clickable { activeTab = index }
+                                    .testTag(testTags[i])
+                                    .padding(vertical = 4.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.Center
+                            ) {
+                                Icon(
+                                    icon,
+                                    contentDescription = label,
+                                    tint = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                                    modifier = Modifier.size(24.dp)
+                                )
+                                Text(
+                                    text = label,
+                                    style = MaterialTheme.typography.labelSmall.copy(
+                                        fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal
+                                    ),
+                                    color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                                )
+                            }
                         }
                     }
                 }
@@ -141,10 +153,21 @@ fun MainDashboardShell(viewModel: JapaViewModel) {
                 .padding(bottom = innerPadding.calculateBottomPadding()),
             color = MaterialTheme.colorScheme.background
         ) {
-            when (activeTab) {
-                0 -> TodayScreen(viewModel = viewModel)
-                1 -> HistoryScreen(viewModel = viewModel)
-                2 -> SettingsScreen(viewModel = viewModel)
+            Box(
+                modifier = Modifier.fillMaxSize(),
+                contentAlignment = Alignment.TopCenter
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .widthIn(max = 640.dp)
+                ) {
+                    when (activeTab) {
+                        0 -> TodayScreen(viewModel = viewModel)
+                        1 -> HistoryScreen(viewModel = viewModel)
+                        2 -> SettingsScreen(viewModel = viewModel)
+                    }
+                }
             }
         }
     }
