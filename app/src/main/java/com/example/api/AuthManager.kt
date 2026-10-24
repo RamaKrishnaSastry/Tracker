@@ -95,11 +95,14 @@ class AuthManager(private val context: Context) {
     suspend fun clearToken(): Unit = withContext(Dispatchers.IO) {
         try {
             val account = GoogleSignIn.getLastSignedInAccount(context)
-            if (account != null && account.account != null) {
-                val scopeString = "oauth2:$driveScope"
-                val token = GoogleAuthUtil.getToken(context, account.account!!, scopeString)
-                if (token != null) {
-                    GoogleAuthUtil.clearToken(context, token)
+            if (account != null) {
+                val googleAccount = account.account
+                if (googleAccount != null) {
+                    val scopeString = "oauth2:$driveScope"
+                    val token = GoogleAuthUtil.getToken(context, googleAccount, scopeString)
+                    if (token != null) {
+                        GoogleAuthUtil.clearToken(context, token)
+                    }
                 }
             }
         } catch (e: Exception) {
