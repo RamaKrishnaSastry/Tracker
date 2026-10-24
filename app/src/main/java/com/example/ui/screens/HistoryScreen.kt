@@ -1,6 +1,8 @@
 // NOTE TO CONTRIBUTORS: Keep HistoryScreen thin. Place reusable UI components in com.example.ui.components (e.g. HistoryComponents.kt).
 package com.example.ui.screens
 
+import androidx.activity.compose.BackHandler
+import androidx.compose.animation.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -8,6 +10,8 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Analytics
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Place
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -71,6 +75,31 @@ fun HistoryScreen(
     var showBulkLocationPicker by rememberSaveable { mutableStateOf(false) }
 
     val practiceTotals by viewModel.allPracticeTotals.collectAsState()
+
+    // System Back Handler exits selection mode
+    BackHandler(enabled = isBulkEditMode) {
+        isBulkEditMode = false
+        selectedBulkDates.value = emptySet()
+    }
+
+    val handleEnterSelectionMode: (String) -> Unit = { dateStr ->
+        isBulkEditMode = true
+        selectedBulkDates.value = selectedBulkDates.value + dateStr
+    }
+
+    val handleDatesAdded: (Set<String>) -> Unit = { dates ->
+        isBulkEditMode = true
+        selectedBulkDates.value = selectedBulkDates.value + dates
+    }
+
+    val handleToggleDateSelection: (String) -> Unit = { dateStr ->
+        val current = selectedBulkDates.value
+        val next = if (current.contains(dateStr)) current - dateStr else current + dateStr
+        selectedBulkDates.value = next
+        if (next.isEmpty() && isBulkEditMode) {
+            isBulkEditMode = false
+        }
+    }
 
     // Combined/Dynamic lifetime grand sum
     val combinedLifetimeTotal = remember(stats, allPractices, practiceTotals) {
@@ -227,7 +256,55 @@ fun HistoryScreen(
 
     Scaffold(
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
-        modifier = modifier.fillMaxSize()
+        modifier = modifier.fillMaxSize(),
+        bottomBar = {
+            AnimatedVisibility(
+                visible = isBulkEditMode && selectedBulkDates.value.isNotEmpty(),
+                enter = slideInVertically(initialOffsetY = { it }) + fadeIn(),
+                exit = slideOutVertically(targetOffsetY = { it }) + fadeOut()
+            ) {
+                Surface(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .navigationBarsPadding(),
+                    tonalElevation = 8.dp,
+                    shadowElevation = 8.dp,
+                    color = MaterialTheme.colorScheme.surfaceColorAtElevation(3.dp)
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 12.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "${selectedBulkDates.value.size} date${if (selectedBulkDates.value.size > 1) "s" else ""} selected",
+                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+
+                        Button(
+                            onClick = { showBulkLocationPicker = true },
+                            modifier = Modifier.heightIn(min = 48.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Place,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "Edit Location",
+                                style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold)
+                            )
+                        }
+                    }
+                }
+            }
+        }
     ) { innerPadding ->
         LazyColumn(
             modifier = Modifier
@@ -410,10 +487,9 @@ fun HistoryScreen(
                     },
                     isBulkEditMode = isBulkEditMode,
                     selectedBulkDates = selectedBulkDates.value,
-                    onToggleDateSelection = { dateStr ->
-                        val current = selectedBulkDates.value
-                        selectedBulkDates.value = if (current.contains(dateStr)) current - dateStr else current + dateStr
-                    },
+                    onToggleDateSelection = handleToggleDateSelection,
+                    onEnterSelectionMode = handleEnterSelectionMode,
+                    onDatesAdded = handleDatesAdded,
                     onToggleBulkEditMode = {
                         isBulkEditMode = !isBulkEditMode
                         if (!isBulkEditMode) selectedBulkDates.value = emptySet()
@@ -428,9 +504,11 @@ fun HistoryScreen(
                             String.format(Locale.US, "%04d-%02d-%02d", currentYear, currentMonth, d)
                         }.toSet()
                         selectedBulkDates.value = allMonthDates
+                        isBulkEditMode = true
                     },
                     onClearBulkSelection = {
                         selectedBulkDates.value = emptySet()
+                        isBulkEditMode = false
                     },
                     onOpenBulkEditDialog = {
                         if (selectedBulkDates.value.isNotEmpty()) {
@@ -448,6 +526,58 @@ fun HistoryScreen(
                         monthAnalyticsList = monthAnalyticsList,
                         accentColor = if (selectedMantraId == GAYATRI_PRACTICE_ID) gayatriColor else getMantraColor(allPractices.find { it.id == selectedMantraId }?.themeColor ?: "teal")
                     )
+                }
+            }
+
+            // 6. LOGGED ENTRIES LIST (when mantra selected)
+            if (selectedMantraId != null) {
+                item {
+                    Text(
+                        text = "LOGGED ENTRIES",
+                        style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold, letterSpacing = 0.8.sp),
+                        color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f),
+                        modifier = Modifier.padding(top = 16.dp, bottom = 4.dp)
+                    )
+                }
+
+                if (selectedMantraId == GAYATRI_PRACTICE_ID) {
+                    val filteredList = locationFilteredGayatriEntries.filter { it.dailyTotal > 0 }.sortedByDescending { it.date }
+                    if (filteredList.isEmpty()) {
+                        item { EmptyHistoryState() }
+                    } else {
+                        items(filteredList, key = { "gayatri_${it.date}" }) { entry ->
+                            HistoryItemRow(
+                                entry = entry,
+                                gayatriName = gayatriName,
+                                gayatriColor = gayatriColor,
+                                onClick = { selectedSummaryDate = entry.date },
+                                isBulkEditMode = isBulkEditMode,
+                                isSelected = selectedBulkDates.value.contains(entry.date),
+                                onEnterSelectionMode = handleEnterSelectionMode,
+                                onToggleSelection = handleToggleDateSelection
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                        }
+                    }
+                } else {
+                    val practice = allPractices.find { it.id == selectedMantraId }
+                    val filteredList = locationFilteredCustomEntries.filter { it.practiceId == selectedMantraId && it.dailyTotal > 0 }.sortedByDescending { it.date }
+                    if (practice != null && filteredList.isNotEmpty()) {
+                        items(filteredList, key = { "custom_${it.practiceId}_${it.date}" }) { entry ->
+                            CustomHistoryItemRow(
+                                entry = entry,
+                                practice = practice,
+                                onClick = { selectedSummaryDate = entry.date },
+                                isBulkEditMode = isBulkEditMode,
+                                isSelected = selectedBulkDates.value.contains(entry.date),
+                                onEnterSelectionMode = handleEnterSelectionMode,
+                                onToggleSelection = handleToggleDateSelection
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                        }
+                    } else {
+                        item { EmptyHistoryState() }
+                    }
                 }
             }
 

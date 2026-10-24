@@ -1,9 +1,12 @@
 package com.example.ui.components
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
@@ -13,11 +16,13 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AllInclusive
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.ChevronLeft
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Place
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.SelectAll
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material3.*
@@ -27,6 +32,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.LayoutCoordinates
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -285,6 +295,7 @@ fun DailySummaryDialog(
     )
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun InteractiveMonthlyCalendar(
     year: Int,
@@ -302,8 +313,11 @@ fun InteractiveMonthlyCalendar(
     isBulkEditMode: Boolean = false,
     selectedBulkDates: Set<String> = emptySet(),
     onToggleDateSelection: (String) -> Unit = {},
+    onEnterSelectionMode: (String) -> Unit = {},
+    onDatesAdded: (Set<String>) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
+    val haptic = LocalHapticFeedback.current
     val cal = Calendar.getInstance().apply {
         set(Calendar.YEAR, year)
         set(Calendar.MONTH, month - 1)
@@ -316,8 +330,51 @@ fun InteractiveMonthlyCalendar(
     val todayStr = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date())
     val actualColor = if (activeColor != MaterialTheme.colorScheme.primary) activeColor else accentColor
 
+    var parentLayoutCoordinates by remember { mutableStateOf<LayoutCoordinates?>(null) }
+    val cellCoordinatesMap = remember { mutableStateMapOf<String, LayoutCoordinates>() }
+    var datesAddedThisDrag by remember { mutableStateOf(setOf<String>()) }
+
     Column(
-        modifier = modifier.fillMaxWidth(),
+        modifier = modifier
+            .fillMaxWidth()
+            .onGloballyPositioned { coords ->
+                parentLayoutCoordinates = coords
+            }
+            .pointerInput(isBulkEditMode) {
+                if (isBulkEditMode) {
+                    detectDragGestures(
+                        onDragStart = { offset ->
+                            datesAddedThisDrag = emptySet()
+                            parentLayoutCoordinates?.let { parentCoords ->
+                                cellCoordinatesMap.forEach { (dateStr, childCoords) ->
+                                    if (childCoords.isAttached) {
+                                        val bounds = parentCoords.localBoundingBoxOf(childCoords, clipBounds = false)
+                                        if (bounds.contains(offset)) {
+                                            datesAddedThisDrag = datesAddedThisDrag + dateStr
+                                            onDatesAdded(datesAddedThisDrag)
+                                        }
+                                    }
+                                }
+                            }
+                        },
+                        onDrag = { change, _ ->
+                            parentLayoutCoordinates?.let { parentCoords ->
+                                cellCoordinatesMap.forEach { (dateStr, childCoords) ->
+                                    if (childCoords.isAttached) {
+                                        val bounds = parentCoords.localBoundingBoxOf(childCoords, clipBounds = false)
+                                        if (bounds.contains(change.position)) {
+                                            if (!datesAddedThisDrag.contains(dateStr)) {
+                                                datesAddedThisDrag = datesAddedThisDrag + dateStr
+                                                onDatesAdded(datesAddedThisDrag)
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    )
+                }
+            },
         verticalArrangement = Arrangement.spacedBy(4.dp)
     ) {
         val daysOfWeek = listOf("Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat")
@@ -367,6 +424,9 @@ fun InteractiveMonthlyCalendar(
                                 .weight(1f)
                                 .aspectRatio(0.96f)
                                 .padding(2.dp)
+                                .onGloballyPositioned { coords ->
+                                    cellCoordinatesMap[dateStr] = coords
+                                }
                                 .clip(RoundedCornerShape(8.dp))
                                 .background(
                                     when {
@@ -381,13 +441,23 @@ fun InteractiveMonthlyCalendar(
                                     color = if (isSelectedForBulk) MaterialTheme.colorScheme.primary else if (isToday) actualColor else Color.Transparent,
                                     shape = RoundedCornerShape(8.dp)
                                 )
-                                .clickable {
-                                    if (isBulkEditMode) {
-                                        onToggleDateSelection(dateStr)
-                                    } else {
-                                        onDayClick(dateStr)
+                                .combinedClickable(
+                                    onClick = {
+                                        if (isBulkEditMode) {
+                                            onToggleDateSelection(dateStr)
+                                        } else {
+                                            onDayClick(dateStr)
+                                        }
+                                    },
+                                    onLongClick = {
+                                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                        if (!isBulkEditMode) {
+                                            onEnterSelectionMode(dateStr)
+                                        } else {
+                                            onToggleDateSelection(dateStr)
+                                        }
                                     }
-                                },
+                                ),
                             contentAlignment = Alignment.Center
                         ) {
                             Column(
@@ -432,6 +502,24 @@ fun InteractiveMonthlyCalendar(
                                     }
                                 }
                             }
+
+                            if (isSelectedForBulk) {
+                                Box(
+                                    modifier = Modifier
+                                        .align(Alignment.TopEnd)
+                                        .padding(2.dp)
+                                        .size(14.dp)
+                                        .background(MaterialTheme.colorScheme.primary, CircleShape),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Check,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.onPrimary,
+                                        modifier = Modifier.size(10.dp)
+                                    )
+                                }
+                            }
                         }
                         dayCounter++
                     }
@@ -455,6 +543,8 @@ fun CalendarSection(
     isBulkEditMode: Boolean = false,
     selectedBulkDates: Set<String> = emptySet(),
     onToggleDateSelection: (String) -> Unit = {},
+    onEnterSelectionMode: (String) -> Unit = {},
+    onDatesAdded: (Set<String>) -> Unit = {},
     onToggleBulkEditMode: () -> Unit = {},
     onSelectAllMonth: () -> Unit = {},
     onClearBulkSelection: () -> Unit = {},
@@ -466,121 +556,89 @@ fun CalendarSection(
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f)),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f)),
         shape = RoundedCornerShape(16.dp),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
-            // Month switcher header & Bulk Edit button
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                IconButton(
-                    onClick = {
-                        val newCal = Calendar.getInstance().apply {
-                            time = currentCalendar.time
-                            add(Calendar.MONTH, -1)
-                        }
-                        onCalendarChange(newCal)
-                    }
-                ) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                        contentDescription = "Previous Month"
-                    )
-                }
-
-                val monthYearString = remember(year, month) {
-                    val sdf = SimpleDateFormat("MMMM yyyy", Locale.getDefault())
-                    val calTemp = Calendar.getInstance().apply {
-                        set(Calendar.YEAR, year)
-                        set(Calendar.MONTH, month - 1)
-                    }
-                    sdf.format(calTemp.time)
-                }
-
-                Text(
-                    text = monthYearString,
-                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-
-                IconButton(
-                    onClick = {
-                        val newCal = Calendar.getInstance().apply {
-                            time = currentCalendar.time
-                            add(Calendar.MONTH, 1)
-                        }
-                        onCalendarChange(newCal)
-                    }
-                ) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.ArrowForward,
-                        contentDescription = "Next Month"
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            // Bulk Edit Mode Toggle Row
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                TextButton(
-                    onClick = onToggleBulkEditMode,
-                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)
-                ) {
-                    Icon(
-                        imageVector = if (isBulkEditMode) Icons.Default.Close else Icons.Default.Place,
-                        contentDescription = null,
-                        modifier = Modifier.size(16.dp)
-                    )
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text(if (isBulkEditMode) "Exit Bulk Edit" else "Bulk Edit Locations", fontSize = 12.sp)
-                }
-
-                if (isBulkEditMode) {
-                    Text(
-                        text = "${selectedBulkDates.size} selected",
-                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                }
-            }
-
+            // Header Row: Transforming depending on isBulkEditMode
             if (isBulkEditMode) {
-                Spacer(modifier = Modifier.height(6.dp))
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    OutlinedButton(
-                        onClick = onSelectAllMonth,
-                        modifier = Modifier.weight(1f),
-                        contentPadding = PaddingValues(4.dp)
-                    ) {
-                        Text("Select Month", fontSize = 11.sp)
+                    IconButton(onClick = onToggleBulkEditMode) {
+                        Icon(
+                            imageVector = Icons.Default.Close,
+                            contentDescription = "Exit Selection Mode",
+                            tint = MaterialTheme.colorScheme.onSurface
+                        )
                     }
-                    OutlinedButton(
-                        onClick = onClearBulkSelection,
-                        modifier = Modifier.weight(1f),
-                        contentPadding = PaddingValues(4.dp)
-                    ) {
-                        Text("Clear", fontSize = 11.sp)
+
+                    Text(
+                        text = if (selectedBulkDates.isEmpty()) "Select dates" else "${selectedBulkDates.size} selected",
+                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                        color = MaterialTheme.colorScheme.primary
+                    )
+
+                    IconButton(onClick = onSelectAllMonth) {
+                        Icon(
+                            imageVector = Icons.Default.SelectAll,
+                            contentDescription = "Select All Month",
+                            tint = MaterialTheme.colorScheme.primary
+                        )
                     }
-                    Button(
-                        onClick = onOpenBulkEditDialog,
-                        enabled = selectedBulkDates.isNotEmpty(),
-                        modifier = Modifier.weight(1.2f),
-                        contentPadding = PaddingValues(4.dp)
+                }
+            } else {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    IconButton(
+                        onClick = {
+                            val newCal = Calendar.getInstance().apply {
+                                time = currentCalendar.time
+                                add(Calendar.MONTH, -1)
+                            }
+                            onCalendarChange(newCal)
+                        }
                     ) {
-                        Text("Edit Location", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = "Previous Month"
+                        )
+                    }
+
+                    val monthYearString = remember(year, month) {
+                        val sdf = SimpleDateFormat("MMMM yyyy", Locale.getDefault())
+                        val calTemp = Calendar.getInstance().apply {
+                            set(Calendar.YEAR, year)
+                            set(Calendar.MONTH, month - 1)
+                        }
+                        sdf.format(calTemp.time)
+                    }
+
+                    Text(
+                        text = monthYearString,
+                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+
+                    IconButton(
+                        onClick = {
+                            val newCal = Calendar.getInstance().apply {
+                                time = currentCalendar.time
+                                add(Calendar.MONTH, 1)
+                            }
+                            onCalendarChange(newCal)
+                        }
+                    ) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                            contentDescription = "Next Month"
+                        )
                     }
                 }
             }
@@ -599,19 +657,27 @@ fun CalendarSection(
                 onDateClick = onDateClick,
                 isBulkEditMode = isBulkEditMode,
                 selectedBulkDates = selectedBulkDates,
-                onToggleDateSelection = onToggleDateSelection
+                onToggleDateSelection = onToggleDateSelection,
+                onEnterSelectionMode = onEnterSelectionMode,
+                onDatesAdded = onDatesAdded
             )
         }
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun HistoryItemRow(
     entry: JapaEntry,
     gayatriName: String,
     gayatriColor: Color,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    isBulkEditMode: Boolean = false,
+    isSelected: Boolean = false,
+    onEnterSelectionMode: (String) -> Unit = {},
+    onToggleSelection: (String) -> Unit = {}
 ) {
+    val haptic = LocalHapticFeedback.current
     val displayDate = remember(entry.date) {
         try {
             val date = SimpleDateFormat("yyyy-MM-dd", Locale.US).parse(entry.date)
@@ -624,14 +690,33 @@ fun HistoryItemRow(
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = onClick)
+            .combinedClickable(
+                onClick = {
+                    if (isBulkEditMode) {
+                        onToggleSelection(entry.date)
+                    } else {
+                        onClick()
+                    }
+                },
+                onLongClick = {
+                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                    if (!isBulkEditMode) {
+                        onEnterSelectionMode(entry.date)
+                    } else {
+                        onToggleSelection(entry.date)
+                    }
+                }
+            )
             .testTag("history_item_${entry.date}"),
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surface
+            containerColor = if (isSelected) MaterialTheme.colorScheme.primary.copy(alpha = 0.12f) else MaterialTheme.colorScheme.surface
         ),
-        border = androidx.compose.foundation.BorderStroke(1.dp, gayatriColor.copy(alpha = 0.3f)),
+        border = BorderStroke(
+            width = if (isSelected) 2.dp else 1.dp,
+            color = if (isSelected) MaterialTheme.colorScheme.primary else gayatriColor.copy(alpha = 0.3f)
+        ),
         shape = RoundedCornerShape(16.dp),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = if (isSelected) 3.dp else 1.dp)
     ) {
         Row(
             modifier = Modifier
@@ -640,6 +725,28 @@ fun HistoryItemRow(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
+            if (isBulkEditMode || isSelected) {
+                Box(
+                    modifier = Modifier
+                        .size(24.dp)
+                        .clip(CircleShape)
+                        .background(
+                            if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    if (isSelected) {
+                        Icon(
+                            imageVector = Icons.Default.Check,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onPrimary,
+                            modifier = Modifier.size(16.dp)
+                        )
+                    }
+                }
+                Spacer(modifier = Modifier.width(12.dp))
+            }
+
             Column(modifier = Modifier.weight(1f)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Box(
@@ -715,12 +822,18 @@ fun HistoryItemRow(
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun CustomHistoryItemRow(
     entry: CustomPracticeEntry,
     practice: CustomPractice,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    isBulkEditMode: Boolean = false,
+    isSelected: Boolean = false,
+    onEnterSelectionMode: (String) -> Unit = {},
+    onToggleSelection: (String) -> Unit = {}
 ) {
+    val haptic = LocalHapticFeedback.current
     val color = getMantraColor(practice.themeColor)
     val displayDate = remember(entry.date) {
         try {
@@ -741,14 +854,33 @@ fun CustomHistoryItemRow(
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = onClick)
+            .combinedClickable(
+                onClick = {
+                    if (isBulkEditMode) {
+                        onToggleSelection(entry.date)
+                    } else {
+                        onClick()
+                    }
+                },
+                onLongClick = {
+                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                    if (!isBulkEditMode) {
+                        onEnterSelectionMode(entry.date)
+                    } else {
+                        onToggleSelection(entry.date)
+                    }
+                }
+            )
             .testTag("custom_history_item_${practice.id}_${entry.date}"),
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surface
+            containerColor = if (isSelected) MaterialTheme.colorScheme.primary.copy(alpha = 0.12f) else MaterialTheme.colorScheme.surface
         ),
-        border = androidx.compose.foundation.BorderStroke(1.dp, color.copy(alpha = 0.3f)),
+        border = BorderStroke(
+            width = if (isSelected) 2.dp else 1.dp,
+            color = if (isSelected) MaterialTheme.colorScheme.primary else color.copy(alpha = 0.3f)
+        ),
         shape = RoundedCornerShape(16.dp),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = if (isSelected) 3.dp else 1.dp)
     ) {
         Row(
             modifier = Modifier
@@ -757,6 +889,28 @@ fun CustomHistoryItemRow(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
+            if (isBulkEditMode || isSelected) {
+                Box(
+                    modifier = Modifier
+                        .size(24.dp)
+                        .clip(CircleShape)
+                        .background(
+                            if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    if (isSelected) {
+                        Icon(
+                            imageVector = Icons.Default.Check,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onPrimary,
+                            modifier = Modifier.size(16.dp)
+                        )
+                    }
+                }
+                Spacer(modifier = Modifier.width(12.dp))
+            }
+
             Column(modifier = Modifier.weight(1f)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Box(
