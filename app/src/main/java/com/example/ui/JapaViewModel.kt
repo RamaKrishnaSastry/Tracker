@@ -13,7 +13,6 @@ import java.text.SimpleDateFormat
 import java.util.*
 
 const val GAYATRI_PRACTICE_ID = -1L
-const val NO_PRACTICE_SELECTED_ID = 0L
 
 class JapaViewModel(application: Application) : AndroidViewModel(application) {
     private val TAG = "JapaViewModel"

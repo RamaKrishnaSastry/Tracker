@@ -47,6 +47,7 @@ import android.Manifest
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import com.example.data.JapaEntry
+import com.example.data.NO_PRACTICE_SELECTED_ID
 import com.example.ui.JapaViewModel
 import com.example.api.SyncState
 import com.example.ui.theme.getMantraColor
@@ -378,7 +379,7 @@ fun TodayScreen(
                             onSave = { updated, isDef ->
                                 viewModel.updatePractice(updated)
                                 if (isDef) viewModel.setDefaultPractice(updated.id)
-                                else if (defaultPracticeId == updated.id) viewModel.setDefaultPractice(com.example.ui.NO_PRACTICE_SELECTED_ID)
+                                else if (defaultPracticeId == updated.id) viewModel.setDefaultPractice(NO_PRACTICE_SELECTED_ID)
                                 showEditDialog = false
                             },
                             onDelete = {
