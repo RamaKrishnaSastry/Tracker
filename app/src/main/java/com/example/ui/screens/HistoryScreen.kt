@@ -269,7 +269,7 @@ fun HistoryScreen(
                 .fillMaxSize()
                 .statusBarsPadding()
                 .padding(horizontal = 16.dp),
-            contentPadding = PaddingValues(bottom = if (isBulkEditMode) 68.dp else 16.dp),
+            contentPadding = PaddingValues(bottom = if (isBulkEditMode) 120.dp else 96.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             item {

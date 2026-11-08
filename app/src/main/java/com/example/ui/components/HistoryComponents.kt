@@ -31,6 +31,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
@@ -1368,53 +1369,99 @@ fun PlaceCategoryFilterRow(
     onSelectFilter: (String?) -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val haptic = LocalHapticFeedback.current
+
     Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text(
-            text = "FILTER BY PLACE CATEGORY",
-            style = MaterialTheme.typography.labelMedium.copy(
-                fontWeight = FontWeight.Bold,
-                letterSpacing = 0.8.sp
-            ),
-            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f),
-            modifier = Modifier.padding(top = 10.dp)
-        )
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Text(
+                text = "FILTER BY PLACE CATEGORY",
+                style = MaterialTheme.typography.labelMedium.copy(
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 0.8.sp
+                ),
+                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f)
+            )
+            if (selectedPlaceCategoryFilter != null) {
+                Text(
+                    text = "Active Filter",
+                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                    color = MaterialTheme.colorScheme.primary
+                )
+            }
+        }
 
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .horizontalScroll(rememberScrollState()),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
+            val isAllSelected = selectedPlaceCategoryFilter == null
+            val allChipScale by androidx.compose.animation.core.animateFloatAsState(
+                targetValue = if (isAllSelected) 1.05f else 1.0f,
+                animationSpec = androidx.compose.animation.core.spring(stiffness = androidx.compose.animation.core.Spring.StiffnessMediumLow),
+                label = "allChipScale"
+            )
+
             FilterChip(
-                selected = selectedPlaceCategoryFilter == null,
-                onClick = { onSelectFilter(null) },
+                selected = isAllSelected,
+                onClick = {
+                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                    onSelectFilter(null)
+                },
                 label = {
                     Text(
                         "All Places",
-                        fontWeight = if (selectedPlaceCategoryFilter == null) FontWeight.Bold else FontWeight.Normal
+                        fontWeight = if (isAllSelected) FontWeight.Bold else FontWeight.Medium
                     )
+                },
+                leadingIcon = {
+                    Icon(
+                        imageVector = Icons.Default.Place,
+                        contentDescription = null,
+                        modifier = Modifier.size(14.dp)
+                    )
+                },
+                modifier = Modifier.graphicsLayer {
+                    scaleX = allChipScale
+                    scaleY = allChipScale
                 }
             )
 
             PlaceCategory.entries.forEach { category ->
                 val isSelected = selectedPlaceCategoryFilter.equals(category.id, ignoreCase = true)
+                val chipScale by androidx.compose.animation.core.animateFloatAsState(
+                    targetValue = if (isSelected) 1.05f else 1.0f,
+                    animationSpec = androidx.compose.animation.core.spring(stiffness = androidx.compose.animation.core.Spring.StiffnessMediumLow),
+                    label = "chipScale_${category.id}"
+                )
+
                 FilterChip(
                     selected = isSelected,
                     onClick = {
+                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                         onSelectFilter(if (isSelected) null else category.id)
                     },
                     label = {
                         Text(
                             text = category.displayName,
-                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
                             color = if (isSelected) category.primaryColor else MaterialTheme.colorScheme.onSurface
                         )
                     },
                     leadingIcon = {
                         Box(
                             modifier = Modifier
-                                .size(8.dp)
-                                .background(category.primaryColor, CircleShape)
+                                .size(10.dp)
+                                .clip(CircleShape)
+                                .background(category.primaryColor)
                         )
                     },
                     colors = FilterChipDefaults.filterChipColors(
@@ -1426,11 +1473,16 @@ fun PlaceCategoryFilterRow(
                         selected = isSelected,
                         borderColor = if (isSelected) category.primaryColor else MaterialTheme.colorScheme.outline.copy(alpha = 0.3f),
                         borderWidth = if (isSelected) 2.dp else 1.dp
-                    )
+                    ),
+                    modifier = Modifier.graphicsLayer {
+                        scaleX = chipScale
+                        scaleY = chipScale
+                    }
                 )
             }
         }
     }
 }
+
 
 

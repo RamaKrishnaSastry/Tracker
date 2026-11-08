@@ -30,6 +30,25 @@ import com.example.ui.screens.SettingsScreen
 import com.example.ui.screens.TodayScreen
 import com.example.ui.theme.MyApplicationTheme
 
+import androidx.compose.animation.*
+import androidx.compose.animation.core.*
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.geometry.Offset
+
 class MainActivity : ComponentActivity() {
     private val viewModel: JapaViewModel by viewModels()
 
@@ -83,74 +102,32 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun MainDashboardShell(viewModel: JapaViewModel) {
     var activeTab by rememberSaveable { mutableStateOf(0) } // 0: Today, 1: History, 2: Settings
+    var isNavBarVisible by remember { mutableStateOf(true) }
+    val haptic = LocalHapticFeedback.current
 
-    Scaffold(
-        modifier = Modifier.fillMaxSize(),
-        bottomBar = {
-            // Shorter, custom-styled bottom navigation for a more immersive feel
-            Surface(
-                tonalElevation = 8.dp,
-                color = MaterialTheme.colorScheme.surface,
-                modifier = Modifier.fillMaxWidth().testTag("app_navigation_bar")
-            ) {
-                Box(
-                    modifier = Modifier.fillMaxWidth(),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Row(
-                        modifier = Modifier
-                            .windowInsetsPadding(WindowInsets.navigationBars)
-                            .fillMaxWidth()
-                            .widthIn(max = 640.dp)
-                            .height(64.dp),
-                        horizontalArrangement = Arrangement.SpaceAround,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        val tabs = listOf(
-                            Triple(0, Icons.Default.CalendarToday, "Today"),
-                            Triple(1, Icons.Default.History, "History"),
-                            Triple(2, Icons.Default.Settings, "Settings")
-                        )
-
-                        val testTags = listOf("nav_tab_today", "nav_tab_history", "nav_tab_settings")
-
-                        for (i in tabs.indices) {
-                            val (index, icon, label) = tabs[i]
-                            val selected = activeTab == index
-                            Column(
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .fillMaxHeight()
-                                    .clickable { activeTab = index }
-                                    .testTag(testTags[i])
-                                    .padding(vertical = 4.dp),
-                                horizontalAlignment = Alignment.CenterHorizontally,
-                                verticalArrangement = Arrangement.Center
-                            ) {
-                                Icon(
-                                    icon,
-                                    contentDescription = label,
-                                    tint = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
-                                    modifier = Modifier.size(24.dp)
-                                )
-                                Text(
-                                    text = label,
-                                    style = MaterialTheme.typography.labelSmall.copy(
-                                        fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal
-                                    ),
-                                    color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
-                                )
-                            }
-                        }
-                    }
+    val nestedScrollConnection = remember {
+        object : NestedScrollConnection {
+            override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
+                if (available.y < -10f) {
+                    // Scrolling down: hide floating bar for full focus
+                    if (isNavBarVisible) isNavBarVisible = false
+                } else if (available.y > 10f) {
+                    // Scrolling up: show floating bar
+                    if (!isNavBarVisible) isNavBarVisible = true
                 }
+                return Offset.Zero
             }
         }
-    ) { innerPadding ->
+    }
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .nestedScroll(nestedScrollConnection)
+    ) {
+        // Main Screen Content (flows edge-to-edge behind the floating liquid glass bar)
         Surface(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(bottom = innerPadding.calculateBottomPadding()),
+            modifier = Modifier.fillMaxSize(),
             color = MaterialTheme.colorScheme.background
         ) {
             Box(
@@ -162,10 +139,184 @@ fun MainDashboardShell(viewModel: JapaViewModel) {
                         .fillMaxSize()
                         .widthIn(max = 640.dp)
                 ) {
-                    when (activeTab) {
-                        0 -> TodayScreen(viewModel = viewModel)
-                        1 -> HistoryScreen(viewModel = viewModel)
-                        2 -> SettingsScreen(viewModel = viewModel)
+                    AnimatedContent(
+                        targetState = activeTab,
+                        transitionSpec = {
+                            if (targetState > initialState) {
+                                (slideInHorizontally { width -> width / 4 } + fadeIn(tween(250))).togetherWith(
+                                    slideOutHorizontally { width -> -width / 4 } + fadeOut(tween(200))
+                                )
+                            } else {
+                                (slideInHorizontally { width -> -width / 4 } + fadeIn(tween(250))).togetherWith(
+                                    slideOutHorizontally { width -> width / 4 } + fadeOut(tween(200))
+                                )
+                            }
+                        },
+                        label = "MainScreenTransition"
+                    ) { targetTab ->
+                        when (targetTab) {
+                            0 -> TodayScreen(viewModel = viewModel)
+                            1 -> HistoryScreen(viewModel = viewModel)
+                            2 -> SettingsScreen(viewModel = viewModel)
+                        }
+                    }
+                }
+            }
+        }
+
+        // Floating Translucent Frosted Liquid Glass Bottom Bar with Scroll Hide/Show
+        val glassSurfaceColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.55f)
+        val glassBorderColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.22f)
+        val glassHighlightColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f)
+
+        AnimatedVisibility(
+            visible = isNavBarVisible,
+            enter = slideInVertically(
+                initialOffsetY = { it * 2 },
+                animationSpec = spring(stiffness = Spring.StiffnessLow, dampingRatio = Spring.DampingRatioLowBouncy)
+            ) + fadeIn(tween(250)),
+            exit = slideOutVertically(
+                targetOffsetY = { it * 2 },
+                animationSpec = tween(durationMillis = 200)
+            ) + fadeOut(tween(200)),
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .windowInsetsPadding(WindowInsets.navigationBars)
+                .padding(horizontal = 16.dp, vertical = 12.dp)
+        ) {
+            Surface(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .widthIn(max = 480.dp)
+                    .testTag("app_navigation_bar"),
+                shape = CircleShape,
+                color = glassSurfaceColor,
+                tonalElevation = 10.dp,
+                shadowElevation = 18.dp,
+                border = BorderStroke(
+                    width = 1.dp,
+                    brush = Brush.verticalGradient(
+                        colors = listOf(
+                            MaterialTheme.colorScheme.onSurface.copy(alpha = 0.35f),
+                            glassBorderColor,
+                            glassHighlightColor
+                        )
+                    )
+                )
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(64.dp)
+                        .padding(horizontal = 4.dp, vertical = 4.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    val tabs = listOf(
+                        Triple(0, Icons.Default.CalendarToday, "Today"),
+                        Triple(1, Icons.Default.History, "History"),
+                        Triple(2, Icons.Default.Settings, "Settings")
+                    )
+
+                    val testTags = listOf("nav_tab_today", "nav_tab_history", "nav_tab_settings")
+
+                    for (i in tabs.indices) {
+                        val (index, icon, label) = tabs[i]
+                        val selected = activeTab == index
+                        val activeColor = MaterialTheme.colorScheme.primary
+
+                        // Edge-flush pill shape according to item index
+                        val tabShape = when (index) {
+                            0 -> RoundedCornerShape(topStart = 28.dp, bottomStart = 28.dp, topEnd = 20.dp, bottomEnd = 20.dp)
+                            2 -> RoundedCornerShape(topStart = 20.dp, bottomStart = 20.dp, topEnd = 28.dp, bottomEnd = 28.dp)
+                            else -> RoundedCornerShape(20.dp)
+                        }
+
+                        // Subtle spring zoom scale animation when selected (1.08f zoom element)
+                        val tabScale by animateFloatAsState(
+                            targetValue = if (selected) 1.08f else 1.0f,
+                            animationSpec = spring(
+                                stiffness = Spring.StiffnessLow,
+                                dampingRatio = Spring.DampingRatioMediumBouncy
+                            ),
+                            label = "tabScale"
+                        )
+
+                        // Smooth color transition for background pill highlight
+                        val tabBgColor by animateColorAsState(
+                            targetValue = if (selected) activeColor.copy(alpha = 0.22f) else Color.Transparent,
+                            animationSpec = tween(durationMillis = 250),
+                            label = "tabBgColor"
+                        )
+
+                        // Glow border alpha for active pill highlight
+                        val borderAlpha by animateFloatAsState(
+                            targetValue = if (selected) 0.35f else 0.0f,
+                            animationSpec = tween(durationMillis = 300),
+                            label = "borderAlpha"
+                        )
+
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .fillMaxHeight()
+                                .padding(
+                                    start = if (index == 0) 2.dp else 2.dp,
+                                    end = if (index == 2) 2.dp else 2.dp,
+                                    top = 2.dp,
+                                    bottom = 2.dp
+                                )
+                                .graphicsLayer {
+                                    scaleX = tabScale
+                                    scaleY = tabScale
+                                }
+                                .clip(tabShape)
+                                .background(tabBgColor)
+                                .border(
+                                    width = 1.dp,
+                                    color = if (selected) activeColor.copy(alpha = borderAlpha) else Color.Transparent,
+                                    shape = tabShape
+                                )
+                                .clickable {
+                                    if (activeTab != index) {
+                                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                        activeTab = index
+                                    }
+                                }
+                                .testTag(testTags[i]),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.Center,
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+                            ) {
+                                Icon(
+                                    icon,
+                                    contentDescription = label,
+                                    tint = if (selected) activeColor else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                                    modifier = Modifier.size(20.dp)
+                                )
+                                AnimatedVisibility(
+                                    visible = selected,
+                                    enter = expandHorizontally(animationSpec = spring(stiffness = Spring.StiffnessMediumLow)) + fadeIn(tween(200)),
+                                    exit = shrinkHorizontally(animationSpec = spring(stiffness = Spring.StiffnessMediumLow)) + fadeOut(tween(150))
+                                ) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Text(
+                                            text = label,
+                                            style = MaterialTheme.typography.labelMedium.copy(
+                                                fontWeight = FontWeight.Bold,
+                                                fontSize = 12.sp
+                                            ),
+                                            color = activeColor,
+                                            maxLines = 1
+                                        )
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
             }

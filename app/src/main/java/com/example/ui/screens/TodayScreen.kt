@@ -1250,6 +1250,7 @@ fun SimplePracticeContent(
                 }
             )
         }
+        Spacer(modifier = Modifier.height(88.dp))
     }
 }
 @Composable
