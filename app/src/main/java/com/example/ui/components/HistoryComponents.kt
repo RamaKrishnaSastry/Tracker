@@ -136,12 +136,14 @@ fun DailySummaryDialog(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    PlaceBadge(
-                        placeName = dayPlaceName,
-                        placeCategory = dayPlaceCat,
-                        latitude = dayLat,
-                        longitude = dayLon
-                    )
+                    Box(modifier = Modifier.weight(1f, fill = false)) {
+                        PlaceBadge(
+                            placeName = dayPlaceName,
+                            placeCategory = dayPlaceCat,
+                            latitude = dayLat,
+                            longitude = dayLon
+                        )
+                    }
 
                     if (onEditLocation != null) {
                         OutlinedButton(
@@ -150,7 +152,7 @@ fun DailySummaryDialog(
                         ) {
                             Icon(Icons.Default.Place, contentDescription = null, modifier = Modifier.size(14.dp))
                             Spacer(modifier = Modifier.width(4.dp))
-                            Text("Edit Place", fontSize = 11.sp)
+                            Text("Edit Place", fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                         }
                     }
                 }
@@ -201,7 +203,10 @@ fun DailySummaryDialog(
                                     Text(
                                         text = gayatriName,
                                         style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Bold),
-                                        color = gayatriColor
+                                        color = gayatriColor,
+                                        modifier = Modifier.weight(1f, fill = false),
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
                                     )
                                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                                         Text(
@@ -217,7 +222,7 @@ fun DailySummaryDialog(
                                                 onClick = { onEditGayatri(effectiveGEntry) },
                                                 contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)
                                             ) {
-                                                Text(if (hasCount) "Edit Count" else "+ Add Count", fontSize = 11.sp, color = gayatriColor)
+                                                Text(if (hasCount) "Edit Count" else "+ Add Count", fontSize = 11.sp, color = gayatriColor, maxLines = 1, overflow = TextOverflow.Ellipsis)
                                             }
                                         }
                                     }
@@ -272,7 +277,8 @@ fun DailySummaryDialog(
                                 ) {
                                     Row(
                                         verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                        modifier = Modifier.weight(1f, fill = false)
                                     ) {
                                         Box(
                                             modifier = Modifier
@@ -282,7 +288,9 @@ fun DailySummaryDialog(
                                         )
                                         Text(
                                             text = practice.name,
-                                            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold)
+                                            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
                                         )
                                     }
 
@@ -300,7 +308,7 @@ fun DailySummaryDialog(
                                                 onClick = { onEditCustom(effectiveEntry, practice) },
                                                 contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)
                                             ) {
-                                                Text(if (hasCount) "Edit Count" else "+ Add Count", fontSize = 11.sp, color = pColor)
+                                                Text(if (hasCount) "Edit Count" else "+ Add Count", fontSize = 11.sp, color = pColor, maxLines = 1, overflow = TextOverflow.Ellipsis)
                                             }
                                         }
                                     }

@@ -27,6 +27,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.Color
@@ -261,6 +262,9 @@ fun TodayScreen(
 
                 var expanded by remember { mutableStateOf(false) }
                 var showEditDialog by remember { mutableStateOf(false) }
+                var anchorWidthPx by remember { mutableStateOf(0) }
+                val density = androidx.compose.ui.platform.LocalDensity.current
+                val menuWidth = 240.dp
 
                 // Centered Title Area with responsive constraints
                 Box(
@@ -271,7 +275,10 @@ fun TodayScreen(
                         TextButton(
                             onClick = { expanded = true },
                             colors = ButtonDefaults.textButtonColors(contentColor = activeMantraColor),
-                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
+                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
+                            modifier = Modifier.onGloballyPositioned { coordinates ->
+                                anchorWidthPx = coordinates.size.width
+                            }
                         ) {
                             Text(
                                 text = currentName,
@@ -286,9 +293,18 @@ fun TodayScreen(
                             Icon(imageVector = Icons.Default.ArrowDropDown, contentDescription = "Select Practice")
                         }
 
+                        val xOffset = remember(anchorWidthPx, density) {
+                            with(density) {
+                                val anchorWidthDp = anchorWidthPx.toDp()
+                                (anchorWidthDp - menuWidth) / 2
+                            }
+                        }
+
                         DropdownMenu(
                             expanded = expanded,
-                            onDismissRequest = { expanded = false }
+                            onDismissRequest = { expanded = false },
+                            offset = androidx.compose.ui.unit.DpOffset(x = xOffset, y = 0.dp),
+                            modifier = Modifier.width(menuWidth)
                         ) {
                             DropdownMenuItem(
                                 text = { Text(gayatriName, fontWeight = if (activePracticeId == com.example.ui.GAYATRI_PRACTICE_ID) FontWeight.Bold else FontWeight.Normal) },
@@ -1085,7 +1101,7 @@ fun SimplePracticeContent(
                                 .fillMaxWidth()
                                 .height(52.dp)
                                 .padding(bottom = 12.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
+                            colors = ButtonDefaults.buttonColors(containerColor = mantraColor),
                             shape = RoundedCornerShape(26.dp)
                         ) {
                             Icon(Icons.Default.Save, null, modifier = Modifier.padding(end = 8.dp))
@@ -1115,6 +1131,17 @@ fun SimplePracticeContent(
                                         localCount += inc
                                     },
                                     label = { Text("+$inc", fontWeight = FontWeight.Bold) },
+                                    colors = InputChipDefaults.inputChipColors(
+                                        labelColor = mantraColor,
+                                        leadingIconColor = mantraColor,
+                                        trailingIconColor = mantraColor,
+                                        containerColor = mantraColor.copy(alpha = 0.08f)
+                                    ),
+                                    border = InputChipDefaults.inputChipBorder(
+                                        enabled = true,
+                                        selected = false,
+                                        borderColor = mantraColor.copy(alpha = 0.4f)
+                                    ),
                                     modifier = Modifier.padding(horizontal = 4.dp).testTag("quick_add_chip_$inc")
                                 )
                             }
@@ -1124,6 +1151,17 @@ fun SimplePracticeContent(
                                 selected = false,
                                 onClick = { showCustomAddDialog = true },
                                 label = { Text("Custom", fontWeight = FontWeight.Bold) },
+                                colors = InputChipDefaults.inputChipColors(
+                                    labelColor = mantraColor,
+                                    leadingIconColor = mantraColor,
+                                    trailingIconColor = mantraColor,
+                                    containerColor = mantraColor.copy(alpha = 0.08f)
+                                ),
+                                border = InputChipDefaults.inputChipBorder(
+                                    enabled = true,
+                                    selected = false,
+                                    borderColor = mantraColor.copy(alpha = 0.4f)
+                                ),
                                 modifier = Modifier.padding(horizontal = 4.dp).testTag("custom_entry_chip"),
                                 leadingIcon = { Icon(Icons.Default.Schedule, "Custom Add", modifier = Modifier.size(16.dp)) }
                             )
@@ -1213,317 +1251,6 @@ fun SimplePracticeContent(
             )
         }
     }
-}
-
-@Composable
-fun GayatriSpecificContent(
-    viewModel: com.example.ui.JapaViewModel,
-    stats: com.example.ui.JapaViewModel.Stats,
-    todayEntry: com.example.data.JapaEntry?,
-    isPunascharanaEnabled: Boolean,
-    completedSandhyas: Int,
-    onShowPunasModal: () -> Unit,
-    accentColor: androidx.compose.ui.graphics.Color = MaterialTheme.colorScheme.primary
-) {
-    val gayatriColor = accentColor
-    Column {
-        // Subtle progress indicator: "X/3 Sandhyas completed"
-        Text(
-            text = "$completedSandhyas/3 Sandhyas completed",
-            style = MaterialTheme.typography.bodyMedium.copy(
-                fontWeight = FontWeight.Medium,
-                letterSpacing = 0.5.sp
-            ),
-            color = gayatriColor,
-            modifier = Modifier.testTag("today_sandhyas_progress").align(Alignment.CenterHorizontally)
-        )
-        Spacer(modifier = Modifier.height(16.dp))
-             Card(
-                 modifier = Modifier
-                     .fillMaxWidth()
-                     .padding(bottom = 16.dp),
-                 colors = CardDefaults.cardColors(
-                     containerColor = gayatriColor.copy(alpha = 0.12f)
-                 ),
-                 border = androidx.compose.foundation.BorderStroke(1.dp, gayatriColor.copy(alpha = 0.25f)),
-                 shape = MaterialTheme.shapes.large
-             ) {
-                 Row(
-                     modifier = Modifier
-                         .fillMaxWidth()
-                         .padding(vertical = 24.dp, horizontal = 8.dp),
-                     horizontalArrangement = Arrangement.SpaceEvenly,
-                     verticalAlignment = Alignment.CenterVertically
-                 ) {
-                     if (isPunascharanaEnabled) {
-                         // Column 1: Today's Total
-                         Column(
-                             horizontalAlignment = Alignment.CenterHorizontally,
-                             modifier = Modifier.weight(1f)
-                         ) {
-                             Text(
-                                 text = "TODAY'S JAPA",
-                                 style = MaterialTheme.typography.labelSmall.copy(
-                                     fontWeight = FontWeight.Bold,
-                                     letterSpacing = 0.5.sp
-                                 ),
-                                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
-                                 textAlign = TextAlign.Center
-                             )
-                             Spacer(modifier = Modifier.height(8.dp))
-                             AnimatedCounterText(
-                                 value = stats.todayTotal,
-                                 style = MaterialTheme.typography.titleLarge.copy(
-                                     fontWeight = FontWeight.Bold,
-                                     fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
-                                 ),
-                                 color = gayatriColor,
-                                 modifier = Modifier.testTag("stats_today")
-                             )
-                         }
-
-                         // Symmetrical divider 1
-                         Box(
-                             modifier = Modifier
-                                 .width(1.dp)
-                                 .height(40.dp)
-                                 .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.15f))
-                         )
-
-                         // Column 2: Lifetime Total
-                         Column(
-                             horizontalAlignment = Alignment.CenterHorizontally,
-                             modifier = Modifier.weight(1f)
-                         ) {
-                             Text(
-                                 text = "LIFETIME TOTAL",
-                                 style = MaterialTheme.typography.labelSmall.copy(
-                                     fontWeight = FontWeight.Bold,
-                                     letterSpacing = 0.5.sp
-                                 ),
-                                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
-                                 textAlign = TextAlign.Center
-                             )
-                             Spacer(modifier = Modifier.height(8.dp))
-                             AnimatedCounterLongText(
-                                 value = stats.lifetimeTotal,
-                                 style = MaterialTheme.typography.titleLarge.copy(
-                                     fontWeight = FontWeight.Bold,
-                                     fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
-                                 ),
-                                 color = gayatriColor,
-                                 modifier = Modifier.testTag("stats_lifetime_total")
-                             )
-                         }
-
-                         // Symmetrical divider 2
-                         Box(
-                             modifier = Modifier
-                                 .width(1.dp)
-                                 .height(40.dp)
-                                 .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.15f))
-                         )
-
-                         // Column 3: Total Punascharana
-                         Column(
-                             horizontalAlignment = Alignment.CenterHorizontally,
-                             modifier = Modifier.weight(1f)
-                         ) {
-                             Text(
-                                 text = "PUNASCHARANA",
-                                 style = MaterialTheme.typography.labelSmall.copy(
-                                     fontWeight = FontWeight.Bold,
-                                     letterSpacing = 0.5.sp
-                                 ),
-                                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
-                                 textAlign = TextAlign.Center
-                             )
-                             Spacer(modifier = Modifier.height(8.dp))
-                             AnimatedCounterLongText(
-                                 value = stats.lifetimePunascharanaTotal,
-                                 style = MaterialTheme.typography.titleLarge.copy(
-                                     fontWeight = FontWeight.Bold,
-                                     fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
-                                 ),
-                                 color = gayatriColor,
-                                 modifier = Modifier.testTag("stats_lifetime_punascharana")
-                             )
-                         }
-                     } else {
-                         // Column 1: Today's Total
-                         Column(
-                             horizontalAlignment = Alignment.CenterHorizontally,
-                             modifier = Modifier.weight(1f)
-                         ) {
-                             Text(
-                                 text = "TODAY'S JAPA",
-                                 style = MaterialTheme.typography.labelSmall.copy(
-                                     fontWeight = FontWeight.Bold,
-                                     letterSpacing = 1.sp
-                                 ),
-                                 color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f),
-                                 textAlign = TextAlign.Center
-                             )
-                             Spacer(modifier = Modifier.height(8.dp))
-                             AnimatedCounterText(
-                                 value = stats.todayTotal,
-                                 style = MaterialTheme.typography.headlineLarge.copy(
-                                     fontWeight = FontWeight.Bold,
-                                     fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
-                                 ),
-                                 color = MaterialTheme.colorScheme.onPrimaryContainer,
-                                 modifier = Modifier.testTag("stats_today")
-                             )
-                         }
-
-                         // Symmetrical divider
-                         Box(
-                             modifier = Modifier
-                                 .width(1.dp)
-                                 .height(48.dp)
-                                 .background(MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.25f))
-                         )
-
-                         // Column 2: Lifetime Total
-                         Column(
-                             horizontalAlignment = Alignment.CenterHorizontally,
-                             modifier = Modifier.weight(1f)
-                         ) {
-                             Text(
-                                 text = "LIFETIME TOTAL",
-                                 style = MaterialTheme.typography.labelSmall.copy(
-                                     fontWeight = FontWeight.Bold,
-                                     letterSpacing = 1.sp
-                                 ),
-                                 color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f),
-                                 textAlign = TextAlign.Center
-                             )
-                             Spacer(modifier = Modifier.height(8.dp))
-                             AnimatedCounterLongText(
-                                 value = stats.lifetimeTotal,
-                                 style = MaterialTheme.typography.headlineLarge.copy(
-                                     fontWeight = FontWeight.Bold,
-                                     fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
-                                 ),
-                                 color = MaterialTheme.colorScheme.onPrimaryContainer,
-                                 modifier = Modifier.testTag("stats_lifetime_total")
-                             )
-                         }
-                     }
-                 }
-             }
-
-            // Section Cards
-            todayEntry?.let { entry ->
-                // Pratah Sandhya
-                SandhyaIntervalCard(
-                    title = "Morning (Pratah Sandhya)",
-                    count = entry.pratahSandhyaCount,
-                    punasCount = entry.pratahPunascharanaCount,
-                    icon = {
-                        Icon(
-                            Icons.Outlined.WbTwilight,
-                            contentDescription = "Sunrise icon for Pratah",
-                            tint = gayatriColor,
-                            modifier = Modifier.size(28.dp)
-                        )
-                    },
-                    onSave = { newCount, newPunas ->
-                        viewModel.updateCounts(
-                            date = entry.date,
-                            morning = newCount,
-                            afternoon = entry.madhyahnikaSandhyaCount,
-                            evening = entry.sayamSandhyaCount,
-                            pratahPunas = newPunas
-                        )
-                    },
-                    onClearAll = {
-                        viewModel.updateCounts(
-                            date = entry.date,
-                            morning = 0,
-                            afternoon = entry.madhyahnikaSandhyaCount,
-                            evening = entry.sayamSandhyaCount,
-                            pratahPunas = 0
-                        )
-                    },
-                    tagPrefix = "morning",
-                    isPunascharanaEnabled = isPunascharanaEnabled,
-                    accentColor = gayatriColor
-                )
-
-                // Midday (Madhyahnika Sandhya)
-                SandhyaIntervalCard(
-                    title = "Midday (Madhyahnika)",
-                    count = entry.madhyahnikaSandhyaCount,
-                    punasCount = entry.madhyahnikaPunascharanaCount,
-                    icon = {
-                        Icon(
-                            Icons.Outlined.WbSunny,
-                            contentDescription = "Sun icon for Midday",
-                            tint = Color(0xFFF1C40F),
-                            modifier = Modifier.size(28.dp)
-                        )
-                    },
-                    onSave = { newCount, newPunas ->
-                        viewModel.updateCounts(
-                            date = entry.date,
-                            morning = entry.pratahSandhyaCount,
-                            afternoon = newCount,
-                            evening = entry.sayamSandhyaCount,
-                            madhyahnikaPunas = newPunas
-                        )
-                    },
-                    onClearAll = {
-                        viewModel.updateCounts(
-                            date = entry.date,
-                            morning = entry.pratahSandhyaCount,
-                            afternoon = 0,
-                            evening = entry.sayamSandhyaCount,
-                            madhyahnikaPunas = 0
-                        )
-                    },
-                    tagPrefix = "afternoon",
-                    isPunascharanaEnabled = isPunascharanaEnabled,
-                    accentColor = gayatriColor
-                )
-
-                // Evening (Sayam Sandhya)
-                SandhyaIntervalCard(
-                    title = "Evening (Sayam Sandhya)",
-                    count = entry.sayamSandhyaCount,
-                    punasCount = entry.sayamPunascharanaCount,
-                    icon = {
-                        Icon(
-                            Icons.Outlined.Brightness4,
-                            contentDescription = "Sunset icon for Sayam",
-                            tint = Color(0xFF9B59B6),
-                            modifier = Modifier.size(28.dp)
-                        )
-                    },
-                    onSave = { newCount, newPunas ->
-                        viewModel.updateCounts(
-                            date = entry.date,
-                            morning = entry.pratahSandhyaCount,
-                            afternoon = entry.madhyahnikaSandhyaCount,
-                            evening = newCount,
-                            sayamPunas = newPunas
-                        )
-                    },
-                    onClearAll = {
-                        viewModel.updateCounts(
-                            date = entry.date,
-                            morning = entry.pratahSandhyaCount,
-                            afternoon = entry.madhyahnikaSandhyaCount,
-                            evening = 0,
-                            sayamPunas = 0
-                        )
-                    },
-                    tagPrefix = "evening",
-                    isPunascharanaEnabled = isPunascharanaEnabled,
-                    accentColor = gayatriColor
-                )
-            }
-        }
 }
 @Composable
 fun SandhyaIntervalCard(

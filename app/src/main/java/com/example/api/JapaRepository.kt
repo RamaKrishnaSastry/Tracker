@@ -44,7 +44,21 @@ class JapaRepository(
     private val _lastSyncError = MutableStateFlow<String?>(null)
     val lastSyncError: StateFlow<String?> = _lastSyncError.asStateFlow()
 
+    private val checkRemoteMutex = kotlinx.coroutines.sync.Mutex()
+
     init {
+        scope.launch {
+            authManager.userProfile.collect { profile ->
+                if (profile == null) {
+                    _syncState.value = SyncState.DISCONNECTED
+                } else if (!isNetworkAvailable()) {
+                    _syncState.value = SyncState.OFFLINE
+                } else {
+                    _syncState.value = SyncState.SYNCED
+                }
+            }
+        }
+
         val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
         val networkRequest = android.net.NetworkRequest.Builder()
             .addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
@@ -63,18 +77,6 @@ class JapaRepository(
                 }
             }
         })
-
-        scope.launch {
-            authManager.userProfile.collect { profile ->
-                if (profile == null) {
-                    _syncState.value = SyncState.DISCONNECTED
-                } else if (!isNetworkAvailable()) {
-                    _syncState.value = SyncState.OFFLINE
-                } else {
-                    _syncState.value = SyncState.SYNCED
-                }
-            }
-        }
     }
 
     private val dfUTC = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.US).apply {
@@ -711,8 +713,6 @@ class JapaRepository(
         }
     }
 
-    private val checkRemoteMutex = kotlinx.coroutines.sync.Mutex()
-
     /**
      * Checks if remote backup changed on another device using lightweight metadata.
      * Avoids downloading the full database payload unless an actual remote change occurred.
@@ -758,7 +758,13 @@ class JapaRepository(
             Log.e(TAG, "Exception in checkForRemoteChanges: ${e.message}", e)
             return@withContext false
         } finally {
-            checkRemoteMutex.unlock()
+            if (checkRemoteMutex.isLocked) {
+                try {
+                    checkRemoteMutex.unlock()
+                } catch (e: Exception) {
+                    Log.d(TAG, "Mutex unlock ignored: ${e.message}")
+                }
+            }
         }
     }
 
