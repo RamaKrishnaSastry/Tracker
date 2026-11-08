@@ -87,15 +87,18 @@ fun DailySummaryDialog(
     }
 
     // Determine eligible records satisfying BOTH filters
-    val isGayatriLocMatch = actualGEntry != null && (filterPlaceCategory == null || (actualGEntry.placeCategory ?: "Home").equals(filterPlaceCategory, ignoreCase = true))
-    val showGayatri = (filterMantraId == null || filterMantraId == com.example.ui.GAYATRI_PRACTICE_ID) && isGayatriLocMatch && (actualGEntry?.dailyTotal ?: 0) > 0
+    val showGayatri = (filterMantraId == null || filterMantraId == com.example.ui.GAYATRI_PRACTICE_ID) &&
+            (actualGEntry == null || filterPlaceCategory == null || (actualGEntry.placeCategory ?: "Home").equals(filterPlaceCategory, ignoreCase = true))
 
     val eligibleCustoms = allPractices.filter { practice ->
         if (practice.id == com.example.ui.GAYATRI_PRACTICE_ID) return@filter false
         if (filterMantraId != null && filterMantraId != practice.id) return@filter false
-        val entry = actualCustomMap[practice.id] ?: return@filter false
-        val matchesLoc = filterPlaceCategory == null || (entry.placeCategory ?: "Home").equals(filterPlaceCategory, ignoreCase = true)
-        matchesLoc && entry.dailyTotal > 0
+        val entry = actualCustomMap[practice.id]
+        if (entry != null && filterPlaceCategory != null) {
+            (entry.placeCategory ?: "Home").equals(filterPlaceCategory, ignoreCase = true)
+        } else {
+            true
+        }
     }
 
     val hasAnyMatchingRecords = showGayatri || eligibleCustoms.isNotEmpty()
@@ -172,12 +175,14 @@ fun DailySummaryDialog(
                     }
                 } else {
                     // Gayatri Entry if matching
-                    if (showGayatri && actualGEntry != null) {
-                        val gCount = actualGEntry.dailyTotal
+                    if (showGayatri) {
+                        val effectiveGEntry = actualGEntry ?: JapaEntry(date = date, updatedAt = "")
+                        val gCount = effectiveGEntry.dailyTotal
+                        val hasCount = actualGEntry != null && actualGEntry.dailyTotal > 0
                         Card(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .then(if (onEditGayatri != null) Modifier.clickable { onEditGayatri(actualGEntry) } else Modifier),
+                                .then(if (onEditGayatri != null) Modifier.clickable { onEditGayatri(effectiveGEntry) } else Modifier),
                             shape = MaterialTheme.shapes.small,
                             colors = CardDefaults.cardColors(containerColor = gayatriColor.copy(alpha = 0.12f)),
                             border = BorderStroke(1.dp, gayatriColor.copy(alpha = 0.25f))
@@ -205,22 +210,22 @@ fun DailySummaryDialog(
                                                 fontWeight = FontWeight.Bold,
                                                 fontFamily = FontFamily.Monospace
                                             ),
-                                            color = gayatriColor
+                                            color = if (hasCount) gayatriColor else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
                                         )
                                         if (onEditGayatri != null) {
                                             OutlinedButton(
-                                                onClick = { onEditGayatri(actualGEntry) },
+                                                onClick = { onEditGayatri(effectiveGEntry) },
                                                 contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)
                                             ) {
-                                                Text("Edit Count", fontSize = 11.sp, color = gayatriColor)
+                                                Text(if (hasCount) "Edit Count" else "+ Add Count", fontSize = 11.sp, color = gayatriColor)
                                             }
                                         }
                                     }
                                 }
 
-                                if (actualGEntry.pratahSandhyaCount > 0 || actualGEntry.madhyahnikaSandhyaCount > 0 || actualGEntry.sayamSandhyaCount > 0) {
+                                if (effectiveGEntry.pratahSandhyaCount > 0 || effectiveGEntry.madhyahnikaSandhyaCount > 0 || effectiveGEntry.sayamSandhyaCount > 0) {
                                     Text(
-                                        text = "Pratah: ${actualGEntry.pratahSandhyaCount}  •  Madhyahnika: ${actualGEntry.madhyahnikaSandhyaCount}  •  Sayam: ${actualGEntry.sayamSandhyaCount}",
+                                        text = "Pratah: ${effectiveGEntry.pratahSandhyaCount}  •  Madhyahnika: ${effectiveGEntry.madhyahnikaSandhyaCount}  •  Sayam: ${effectiveGEntry.sayamSandhyaCount}",
                                         style = MaterialTheme.typography.bodySmall,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
                                     )
@@ -239,14 +244,21 @@ fun DailySummaryDialog(
                         )
 
                         eligibleCustoms.forEach { practice ->
-                            val entry = actualCustomMap[practice.id]
-                            val cCount = entry?.dailyTotal ?: 0
+                            val existingEntry = actualCustomMap[practice.id]
+                            val effectiveEntry = existingEntry ?: com.example.data.CustomPracticeEntry(
+                                practiceId = practice.id,
+                                date = date,
+                                count = 0,
+                                updatedAt = ""
+                            )
+                            val cCount = effectiveEntry.dailyTotal
+                            val hasCount = existingEntry != null && existingEntry.dailyTotal > 0
                             val pColor = getMantraColor(practice.themeColor)
 
                             Card(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .then(if (onEditCustom != null && entry != null) Modifier.clickable { onEditCustom(entry, practice) } else Modifier),
+                                    .then(if (onEditCustom != null) Modifier.clickable { onEditCustom(effectiveEntry, practice) } else Modifier),
                                 shape = MaterialTheme.shapes.small,
                                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)),
                                 border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
@@ -281,14 +293,14 @@ fun DailySummaryDialog(
                                                 fontWeight = FontWeight.Bold,
                                                 fontFamily = FontFamily.Monospace
                                             ),
-                                            color = if (cCount > 0) pColor else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
+                                            color = if (hasCount) pColor else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
                                         )
-                                        if (onEditCustom != null && entry != null) {
+                                        if (onEditCustom != null) {
                                             OutlinedButton(
-                                                onClick = { onEditCustom(entry, practice) },
+                                                onClick = { onEditCustom(effectiveEntry, practice) },
                                                 contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)
                                             ) {
-                                                Text("Edit Count", fontSize = 11.sp, color = pColor)
+                                                Text(if (hasCount) "Edit Count" else "+ Add Count", fontSize = 11.sp, color = pColor)
                                             }
                                         }
                                     }

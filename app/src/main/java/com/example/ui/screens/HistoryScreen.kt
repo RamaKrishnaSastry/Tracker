@@ -487,59 +487,7 @@ fun HistoryScreen(
                 }
             }
 
-            // 6. LOGGED ENTRIES LIST (when mantra selected)
-            if (selectedMantraId != null) {
-                item {
-                    Text(
-                        text = "LOGGED ENTRIES",
-                        style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold, letterSpacing = 0.8.sp),
-                        color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f),
-                        modifier = Modifier.padding(top = 16.dp, bottom = 4.dp)
-                    )
-                }
 
-                if (selectedMantraId == GAYATRI_PRACTICE_ID) {
-                    val filteredList = locationFilteredGayatriEntries.filter { it.dailyTotal > 0 }.sortedByDescending { it.date }
-                    if (filteredList.isEmpty()) {
-                        item { EmptyHistoryState() }
-                    } else {
-                        items(filteredList, key = { "gayatri_${it.date}" }) { entry ->
-                            HistoryItemRow(
-                                entry = entry,
-                                gayatriName = gayatriName,
-                                gayatriColor = gayatriColor,
-                                onClick = { selectedEntryToEdit = entry },
-                                onEditLocation = { locationEditDate = entry.date },
-                                isBulkEditMode = isBulkEditMode,
-                                isSelected = selectedBulkDates.value.contains(entry.date),
-                                onEnterSelectionMode = handleEnterSelectionMode,
-                                onToggleSelection = handleToggleDateSelection
-                            )
-                            Spacer(modifier = Modifier.height(8.dp))
-                        }
-                    }
-                } else {
-                    val practice = allPractices.find { it.id == selectedMantraId }
-                    val filteredList = locationFilteredCustomEntries.filter { it.practiceId == selectedMantraId && it.dailyTotal > 0 }.sortedByDescending { it.date }
-                    if (practice != null && filteredList.isNotEmpty()) {
-                        items(filteredList, key = { "custom_${it.practiceId}_${it.date}" }) { entry ->
-                            CustomHistoryItemRow(
-                                entry = entry,
-                                practice = practice,
-                                onClick = { selectedCustomEntryToEdit = entry to practice },
-                                onEditLocation = { locationEditDate = entry.date },
-                                isBulkEditMode = isBulkEditMode,
-                                isSelected = selectedBulkDates.value.contains(entry.date),
-                                onEnterSelectionMode = handleEnterSelectionMode,
-                                onToggleSelection = handleToggleDateSelection
-                            )
-                            Spacer(modifier = Modifier.height(8.dp))
-                        }
-                    } else {
-                        item { EmptyHistoryState() }
-                    }
-                }
-            }
 
             item { Spacer(modifier = Modifier.height(24.dp)) }
         }

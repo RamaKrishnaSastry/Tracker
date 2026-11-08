@@ -267,60 +267,62 @@ fun TodayScreen(
                     modifier = Modifier.weight(1f),
                     contentAlignment = Alignment.Center
                 ) {
-                    TextButton(
-                        onClick = { expanded = true },
-                        colors = ButtonDefaults.textButtonColors(contentColor = activeMantraColor),
-                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
-                    ) {
-                        Text(
-                            text = currentName,
-                            style = MaterialTheme.typography.headlineMedium.copy(
-                                fontWeight = FontWeight.ExtraBold,
-                                fontFamily = androidx.compose.ui.text.font.FontFamily.Serif,
-                                letterSpacing = 0.5.sp
-                            ),
-                            maxLines = 1,
-                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
-                        )
-                        Icon(imageVector = Icons.Default.ArrowDropDown, contentDescription = "Select Practice")
-                    }
-
-                    DropdownMenu(
-                        expanded = expanded,
-                        onDismissRequest = { expanded = false }
-                    ) {
-                        DropdownMenuItem(
-                            text = { Text(gayatriName, fontWeight = if (activePracticeId == com.example.ui.GAYATRI_PRACTICE_ID) FontWeight.Bold else FontWeight.Normal) },
-                            onClick = {
-                                viewModel.setActivePractice(com.example.ui.GAYATRI_PRACTICE_ID)
-                                expanded = false
-                            },
-                            trailingIcon = if (activePracticeId == com.example.ui.GAYATRI_PRACTICE_ID) {
-                                { Icon(Icons.Default.Check, "Selected") }
-                            } else null
-                        )
-
-                        val otherPractices = remember(allPractices) {
-                            allPractices.filter { it.id != com.example.ui.GAYATRI_PRACTICE_ID }
+                    Box {
+                        TextButton(
+                            onClick = { expanded = true },
+                            colors = ButtonDefaults.textButtonColors(contentColor = activeMantraColor),
+                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
+                        ) {
+                            Text(
+                                text = currentName,
+                                style = MaterialTheme.typography.headlineMedium.copy(
+                                    fontWeight = FontWeight.ExtraBold,
+                                    fontFamily = androidx.compose.ui.text.font.FontFamily.Serif,
+                                    letterSpacing = 0.5.sp
+                                ),
+                                maxLines = 1,
+                                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                            )
+                            Icon(imageVector = Icons.Default.ArrowDropDown, contentDescription = "Select Practice")
                         }
 
-                        if (otherPractices.isNotEmpty()) {
-                            Divider()
-                        }
-
-                        otherPractices.forEach { practice ->
+                        DropdownMenu(
+                            expanded = expanded,
+                            onDismissRequest = { expanded = false }
+                        ) {
                             DropdownMenuItem(
-                                text = { Text(practice.name, fontWeight = if (activePracticeId == practice.id) FontWeight.Bold else FontWeight.Normal) },
+                                text = { Text(gayatriName, fontWeight = if (activePracticeId == com.example.ui.GAYATRI_PRACTICE_ID) FontWeight.Bold else FontWeight.Normal) },
                                 onClick = {
-                                    viewModel.setActivePractice(practice.id)
+                                    viewModel.setActivePractice(com.example.ui.GAYATRI_PRACTICE_ID)
                                     expanded = false
                                 },
-                                trailingIcon = if (activePracticeId == practice.id) {
+                                trailingIcon = if (activePracticeId == com.example.ui.GAYATRI_PRACTICE_ID) {
                                     { Icon(Icons.Default.Check, "Selected") }
                                 } else null
                             )
-                        }
 
+                            val otherPractices = remember(allPractices) {
+                                allPractices.filter { it.id != com.example.ui.GAYATRI_PRACTICE_ID }
+                            }
+
+                            if (otherPractices.isNotEmpty()) {
+                                Divider()
+                            }
+
+                            otherPractices.forEach { practice ->
+                                DropdownMenuItem(
+                                    text = { Text(practice.name, fontWeight = if (activePracticeId == practice.id) FontWeight.Bold else FontWeight.Normal) },
+                                    onClick = {
+                                        viewModel.setActivePractice(practice.id)
+                                        expanded = false
+                                    },
+                                    trailingIcon = if (activePracticeId == practice.id) {
+                                        { Icon(Icons.Default.Check, "Selected") }
+                                    } else null
+                                )
+                            }
+
+                        }
                     }
                 }
 
