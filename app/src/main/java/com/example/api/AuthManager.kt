@@ -24,7 +24,7 @@ class AuthManager(private val context: Context) {
         .requestScopes(Scope(driveScope))
         .build()
 
-    private val signInClient: GoogleSignInClient = GoogleSignIn.getClient(context, gso)
+    private val googleSignInClient: GoogleSignInClient by lazy { GoogleSignIn.getClient(context, gso) }
 
     data class UserProfile(
         val displayName: String,
@@ -36,13 +36,23 @@ class AuthManager(private val context: Context) {
     val userProfile: StateFlow<UserProfile?> = _userProfile.asStateFlow()
 
     init {
-        checkCurrentSession()
+        try {
+            checkCurrentSession()
+        } catch (e: Exception) {
+            Log.e(TAG, "checkCurrentSession failed during init: ${e.message}", e)
+        }
     }
 
-    fun getSignInClient(): GoogleSignInClient = signInClient
+    fun getSignInClient(): GoogleSignInClient = googleSignInClient
 
     fun checkCurrentSession(onComplete: (() -> Unit)? = null) {
-        val account = GoogleSignIn.getLastSignedInAccount(context)
+        val account = try {
+            GoogleSignIn.getLastSignedInAccount(context)
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to get last signed in account: ${e.message}")
+            null
+        }
+
         if (account != null) {
             _userProfile.value = UserProfile(
                 displayName = account.displayName ?: "Japa Mitra",
@@ -51,22 +61,28 @@ class AuthManager(private val context: Context) {
             )
             onComplete?.invoke()
         } else {
-            signInClient.silentSignIn().addOnCompleteListener { task ->
-                try {
-                    val silentAccount = task.getResult(com.google.android.gms.common.api.ApiException::class.java)
-                    if (silentAccount != null) {
-                        _userProfile.value = UserProfile(
-                            displayName = silentAccount.displayName ?: "Japa Mitra",
-                            email = silentAccount.email ?: "local@sandhya.org",
-                            photoUrl = silentAccount.photoUrl?.toString()
-                        )
-                    } else {
+            try {
+                googleSignInClient.silentSignIn().addOnCompleteListener { task ->
+                    try {
+                        val silentAccount = task.getResult(com.google.android.gms.common.api.ApiException::class.java)
+                        if (silentAccount != null) {
+                            _userProfile.value = UserProfile(
+                                displayName = silentAccount.displayName ?: "Japa Mitra",
+                                email = silentAccount.email ?: "local@sandhya.org",
+                                photoUrl = silentAccount.photoUrl?.toString()
+                            )
+                        } else {
+                            _userProfile.value = null
+                        }
+                    } catch (e: Exception) {
+                        Log.d(TAG, "Silent sign in failed: ${e.message}")
                         _userProfile.value = null
                     }
-                } catch (e: Exception) {
-                    Log.d(TAG, "Silent sign in failed: ${e.message}")
-                    _userProfile.value = null
+                    onComplete?.invoke()
                 }
+            } catch (e: Exception) {
+                Log.e(TAG, "silentSignIn() threw synchronously: ${e.message}", e)
+                _userProfile.value = null
                 onComplete?.invoke()
             }
         }
@@ -111,7 +127,7 @@ class AuthManager(private val context: Context) {
     }
 
     fun signOut(onComplete: () -> Unit) {
-        signInClient.signOut().addOnCompleteListener {
+        googleSignInClient.signOut().addOnCompleteListener {
             _userProfile.value = null
             onComplete()
         }

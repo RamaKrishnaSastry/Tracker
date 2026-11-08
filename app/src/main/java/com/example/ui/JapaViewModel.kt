@@ -420,12 +420,14 @@ class JapaViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun setGayatriConfig(name: String, color: String, isDefault: Boolean, initialCount: Long) {
+    fun setGayatriConfig(name: String, color: String, isDefault: Boolean, initialCount: Long = prefs.getInitialLifetimeCount()) {
         prefs.setGayatriName(name)
         prefs.setGayatriColor(color)
         prefs.setInitialLifetimeCount(initialCount)
         if (isDefault) {
             prefs.setDefaultPracticeId(GAYATRI_PRACTICE_ID)
+        } else if (prefs.getDefaultPracticeId() == GAYATRI_PRACTICE_ID) {
+            prefs.setDefaultPracticeId(NO_PRACTICE_SELECTED_ID)
         }
         setActivePractice(GAYATRI_PRACTICE_ID)
         viewModelScope.launch {

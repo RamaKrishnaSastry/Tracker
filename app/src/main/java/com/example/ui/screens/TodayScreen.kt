@@ -321,30 +321,6 @@ fun TodayScreen(
                             )
                         }
 
-                        Divider()
-                        var showAddDialogFromMenu by remember { mutableStateOf(false) }
-                        DropdownMenuItem(
-                            text = { Text("Add Custom Practice...", color = MaterialTheme.colorScheme.primary) },
-                            onClick = {
-                                showAddDialogFromMenu = true
-                            },
-                            leadingIcon = { Icon(Icons.Default.Add, null, tint = MaterialTheme.colorScheme.primary) }
-                        )
-
-                        if (showAddDialogFromMenu) {
-                            AddMantraTemplateDialog(
-                                viewModel = viewModel,
-                                onDismiss = {
-                                    showAddDialogFromMenu = false
-                                    expanded = false
-                                },
-                                onCreated = { newId ->
-                                    viewModel.setActivePractice(newId)
-                                    showAddDialogFromMenu = false
-                                    expanded = false
-                                }
-                            )
-                        }
                     }
                 }
 
@@ -370,23 +346,50 @@ fun TodayScreen(
                 }
 
                 if (showEditDialog) {
-                    val activePractice = allPractices.find { it.id == activePracticeId }
-                    if (activePractice != null) {
-                        EditMantraDialog(
-                            practice = activePractice,
-                            isDefaultMantra = defaultPracticeId == activePractice.id,
+                    if (activePracticeId == com.example.ui.GAYATRI_PRACTICE_ID) {
+                        EditGayatriDialog(
+                            currentName = gayatriName,
+                            currentColor = gayatriColorName,
+                            isDefaultMantra = defaultPracticeId == com.example.ui.GAYATRI_PRACTICE_ID,
                             onDismiss = { showEditDialog = false },
-                            onSave = { updated, isDef ->
-                                viewModel.updatePractice(updated)
-                                if (isDef) viewModel.setDefaultPractice(updated.id)
-                                else if (defaultPracticeId == updated.id) viewModel.setDefaultPractice(NO_PRACTICE_SELECTED_ID)
-                                showEditDialog = false
-                            },
-                            onDelete = {
-                                viewModel.deletePractice(activePractice)
+                            onSave = { name, color, isDef ->
+                                viewModel.setGayatriConfig(
+                                    name = name,
+                                    color = color,
+                                    isDefault = isDef,
+                                    initialCount = viewModel.prefs.getInitialLifetimeCount()
+                                )
                                 showEditDialog = false
                             }
                         )
+                    } else {
+                        val activePractice = allPractices.find { it.id == activePracticeId }
+                        if (activePractice != null) {
+                            EditMantraDialog(
+                                practice = activePractice,
+                                isDefaultMantra = defaultPracticeId == activePractice.id,
+                                onDismiss = { showEditDialog = false },
+                                onSave = { updated, isDef ->
+                                    if (updated.id == com.example.ui.GAYATRI_PRACTICE_ID) {
+                                        viewModel.setGayatriConfig(
+                                            name = updated.name,
+                                            color = updated.themeColor,
+                                            isDefault = isDef,
+                                            initialCount = viewModel.prefs.getInitialLifetimeCount()
+                                        )
+                                    } else {
+                                        viewModel.updatePractice(updated)
+                                        if (isDef) viewModel.setDefaultPractice(updated.id)
+                                        else if (defaultPracticeId == updated.id) viewModel.setDefaultPractice(NO_PRACTICE_SELECTED_ID)
+                                    }
+                                    showEditDialog = false
+                                },
+                                onDelete = {
+                                    viewModel.deletePractice(activePractice)
+                                    showEditDialog = false
+                                }
+                            )
+                        }
                     }
                 }
             }

@@ -141,10 +141,12 @@ fun DailySummaryDialog(
                     )
 
                     if (onEditLocation != null) {
-                        TextButton(
+                        OutlinedButton(
                             onClick = onEditLocation,
                             contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)
                         ) {
+                            Icon(Icons.Default.Place, contentDescription = null, modifier = Modifier.size(14.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
                             Text("Edit Place", fontSize = 11.sp)
                         }
                     }
@@ -206,7 +208,12 @@ fun DailySummaryDialog(
                                             color = gayatriColor
                                         )
                                         if (onEditGayatri != null) {
-                                            Text("(Edit)", fontSize = 10.sp, color = gayatriColor.copy(alpha = 0.7f))
+                                            OutlinedButton(
+                                                onClick = { onEditGayatri(actualGEntry) },
+                                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)
+                                            ) {
+                                                Text("Edit Count", fontSize = 11.sp, color = gayatriColor)
+                                            }
                                         }
                                     }
                                 }
@@ -277,7 +284,12 @@ fun DailySummaryDialog(
                                             color = if (cCount > 0) pColor else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
                                         )
                                         if (onEditCustom != null && entry != null) {
-                                            Text("(Edit)", fontSize = 10.sp, color = pColor.copy(alpha = 0.7f))
+                                            OutlinedButton(
+                                                onClick = { onEditCustom(entry, practice) },
+                                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)
+                                            ) {
+                                                Text("Edit Count", fontSize = 11.sp, color = pColor)
+                                            }
                                         }
                                     }
                                 }
@@ -646,6 +658,7 @@ fun HistoryItemRow(
     gayatriName: String,
     gayatriColor: Color,
     onClick: () -> Unit,
+    onEditLocation: (() -> Unit)? = null,
     isBulkEditMode: Boolean = false,
     isSelected: Boolean = false,
     onEnterSelectionMode: (String) -> Unit = {},
@@ -768,13 +781,31 @@ fun HistoryItemRow(
                     )
                 }
 
-                PlaceBadge(
-                    placeName = entry.placeName,
-                    placeCategory = entry.placeCategory,
-                    latitude = entry.latitude,
-                    longitude = entry.longitude,
-                    modifier = Modifier.padding(top = 8.dp)
-                )
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    PlaceBadge(
+                        placeName = entry.placeName,
+                        placeCategory = entry.placeCategory,
+                        latitude = entry.latitude,
+                        longitude = entry.longitude
+                    )
+                    if (onEditLocation != null && !isBulkEditMode) {
+                        IconButton(
+                            onClick = onEditLocation,
+                            modifier = Modifier.size(36.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Place,
+                                contentDescription = "Edit Location",
+                                tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.8f),
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+                    }
+                }
             }
 
             Column(horizontalAlignment = Alignment.End) {
@@ -802,6 +833,7 @@ fun CustomHistoryItemRow(
     entry: CustomPracticeEntry,
     practice: CustomPractice,
     onClick: () -> Unit,
+    onEditLocation: (() -> Unit)? = null,
     isBulkEditMode: Boolean = false,
     isSelected: Boolean = false,
     onEnterSelectionMode: (String) -> Unit = {},
@@ -929,13 +961,31 @@ fun CustomHistoryItemRow(
                     }
                 }
 
-                PlaceBadge(
-                    placeName = entry.placeName,
-                    placeCategory = entry.placeCategory,
-                    latitude = entry.latitude,
-                    longitude = entry.longitude,
-                    modifier = Modifier.padding(top = 8.dp)
-                )
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    PlaceBadge(
+                        placeName = entry.placeName,
+                        placeCategory = entry.placeCategory,
+                        latitude = entry.latitude,
+                        longitude = entry.longitude
+                    )
+                    if (onEditLocation != null && !isBulkEditMode) {
+                        IconButton(
+                            onClick = onEditLocation,
+                            modifier = Modifier.size(36.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Place,
+                                contentDescription = "Edit Location",
+                                tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.8f),
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+                    }
+                }
             }
             
             Column(horizontalAlignment = Alignment.End) {
