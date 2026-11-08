@@ -5,6 +5,8 @@ import android.util.Log
 import android.widget.Space
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.lazy.itemsIndexed
+import kotlinx.coroutines.launch
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -696,7 +698,7 @@ fun SettingsScreen(
                 )
                 
                 if (showManageDialog) {
-                    ManagePracticesDialog(
+                    ManagePracticesSheet(
                         viewModel = viewModel,
                         onDismiss = { showManageDialog = false }
                     )
@@ -1270,7 +1272,53 @@ fun DialColumn(
 }
 
 @Composable
-fun ManagePracticesDialog(
+fun PracticeEmptyState(
+    title: String,
+    description: String,
+    icon: ImageVector = Icons.Default.Inbox
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 16.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
+        ),
+        shape = MaterialTheme.shapes.medium
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.6f),
+                modifier = Modifier.size(40.dp)
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = description,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                textAlign = TextAlign.Center
+            )
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun ManagePracticesSheet(
     viewModel: com.example.ui.JapaViewModel,
     onDismiss: () -> Unit
 ) {
@@ -1279,70 +1327,188 @@ fun ManagePracticesDialog(
     val defaultPid by viewModel.defaultPracticeId.collectAsState()
     
     var showArchived by remember { mutableStateOf(false) }
+    val snackbarHostState = remember { SnackbarHostState() }
+    val scope = rememberCoroutineScope()
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
-    AlertDialog(
+    ModalBottomSheet(
         onDismissRequest = onDismiss,
-        title = { Text("Manage Practices") },
-        text = {
-            Column(modifier = Modifier.heightIn(max = 500.dp)) {
-                TabRow(selectedTabIndex = if (showArchived) 1 else 0) {
-                    Tab(selected = !showArchived, onClick = { showArchived = false }, text = { Text("Active") })
-                    Tab(selected = showArchived, onClick = { showArchived = true }, text = { Text("Archived") })
+        sheetState = sheetState,
+        shape = MaterialTheme.shapes.large,
+        containerColor = MaterialTheme.colorScheme.surface
+    ) {
+        Scaffold(
+            snackbarHost = { SnackbarHost(snackbarHostState) },
+            containerColor = Color.Transparent,
+            modifier = Modifier.fillMaxHeight(0.85f)
+        ) { innerPadding ->
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(innerPadding)
+                    .padding(horizontal = 16.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Manage Practices",
+                        style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    IconButton(onClick = onDismiss) {
+                        Icon(Icons.Default.Close, contentDescription = "Close")
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                TabRow(
+                    selectedTabIndex = if (showArchived) 1 else 0,
+                    containerColor = Color.Transparent
+                ) {
+                    Tab(
+                        selected = !showArchived,
+                        onClick = { showArchived = false },
+                        text = { Text("Active (${activePractices.size})") }
+                    )
+                    Tab(
+                        selected = showArchived,
+                        onClick = { showArchived = true },
+                        text = { Text("Archived (${archivedPractices.size})") }
+                    )
                 }
                 
                 Spacer(modifier = Modifier.height(16.dp))
                 
                 if (!showArchived) {
-                    androidx.compose.foundation.lazy.LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        items(activePractices.size) { index ->
-                            val p = activePractices[index]
-                            PracticeManagementRow(
-                                practice = p,
-                                isDefault = p.id == defaultPid,
-                                onMoveUp = if (index > 0) { { 
-                                    val newList = activePractices.toMutableList()
-                                    // Room order is 0-indexed, update all or swap
-                                    val swapWith = activePractices[index - 1]
-                                    viewModel.updatePracticeOrder(listOf(p.copy(displayOrder = index - 1), swapWith.copy(displayOrder = index)))
-                                } } else null,
-                                onMoveDown = if (index < activePractices.size - 1) { { 
-                                    val swapWith = activePractices[index + 1]
-                                    viewModel.updatePracticeOrder(listOf(p.copy(displayOrder = index + 1), swapWith.copy(displayOrder = index)))
-                                } } else null,
-                                onArchive = { viewModel.togglePracticeArchived(p.id, true) },
-                                onSetDefault = { viewModel.setDefaultPractice(p.id) }
-                            )
-                        }
-                        
-                        if (activePractices.isEmpty()) {
-                            item { Text("No active practices found.", color = Color.Gray) }
+                    if (activePractices.isEmpty()) {
+                        PracticeEmptyState(
+                            title = "No Active Practices",
+                            description = "Add a new practice or restore one from the Archived tab.",
+                            icon = Icons.Default.PlaylistRemove
+                        )
+                    } else {
+                        androidx.compose.foundation.lazy.LazyColumn(
+                            verticalArrangement = Arrangement.spacedBy(8.dp),
+                            modifier = Modifier.fillMaxSize(),
+                            contentPadding = PaddingValues(bottom = 24.dp)
+                        ) {
+                            itemsIndexed(
+                                items = activePractices,
+                                key = { _, item -> item.id }
+                            ) { index, p ->
+                                PracticeManagementRow(
+                                    practice = p,
+                                    isDefault = p.id == defaultPid,
+                                    onMoveUp = if (index > 0) {
+                                        {
+                                            val swapWith = activePractices[index - 1]
+                                            val pOrder = if (p.displayOrder != swapWith.displayOrder) swapWith.displayOrder else index - 1
+                                            val swapOrder = if (p.displayOrder != swapWith.displayOrder) p.displayOrder else index
+                                            viewModel.updatePracticeOrder(
+                                                listOf(
+                                                    p.copy(displayOrder = pOrder),
+                                                    swapWith.copy(displayOrder = swapOrder)
+                                                )
+                                            )
+                                        }
+                                    } else null,
+                                    onMoveDown = if (index < activePractices.size - 1) {
+                                        {
+                                            val swapWith = activePractices[index + 1]
+                                            val pOrder = if (p.displayOrder != swapWith.displayOrder) swapWith.displayOrder else index + 1
+                                            val swapOrder = if (p.displayOrder != swapWith.displayOrder) p.displayOrder else index
+                                            viewModel.updatePracticeOrder(
+                                                listOf(
+                                                    p.copy(displayOrder = pOrder),
+                                                    swapWith.copy(displayOrder = swapOrder)
+                                                )
+                                            )
+                                        }
+                                    } else null,
+                                    onArchive = {
+                                        viewModel.togglePracticeArchived(p.id, true)
+                                        scope.launch {
+                                            snackbarHostState.currentSnackbarData?.dismiss()
+                                            val result = snackbarHostState.showSnackbar(
+                                                message = "Archived '${p.name}'",
+                                                actionLabel = "Undo",
+                                                duration = SnackbarDuration.Short
+                                            )
+                                            if (result == SnackbarResult.ActionPerformed) {
+                                                viewModel.togglePracticeArchived(p.id, false)
+                                            }
+                                        }
+                                    },
+                                    onSetDefault = { viewModel.setDefaultPractice(p.id) }
+                                )
+                            }
                         }
                     }
                 } else {
-                    androidx.compose.foundation.lazy.LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        items(archivedPractices.size) { index ->
-                            val p = archivedPractices[index]
-                            ListItem(
-                                headlineContent = { Text(p.name) },
-                                supportingContent = { Text(p.practiceType) },
-                                trailingContent = {
-                                    IconButton(onClick = { viewModel.togglePracticeArchived(p.id, false) }) {
-                                        Icon(Icons.Default.Unarchive, "Unarchive")
-                                    }
+                    if (archivedPractices.isEmpty()) {
+                        PracticeEmptyState(
+                            title = "No Archived Practices",
+                            description = "Practices you archive will appear here.",
+                            icon = Icons.Default.Archive
+                        )
+                    } else {
+                        androidx.compose.foundation.lazy.LazyColumn(
+                            verticalArrangement = Arrangement.spacedBy(8.dp),
+                            modifier = Modifier.fillMaxSize(),
+                            contentPadding = PaddingValues(bottom = 24.dp)
+                        ) {
+                            itemsIndexed(
+                                items = archivedPractices,
+                                key = { _, item -> item.id }
+                            ) { _, p ->
+                                Card(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    shape = MaterialTheme.shapes.medium,
+                                    colors = CardDefaults.cardColors(
+                                        containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
+                                    )
+                                ) {
+                                    ListItem(
+                                        headlineContent = { Text(p.name, fontWeight = FontWeight.Bold) },
+                                        supportingContent = { Text(p.practiceType) },
+                                        trailingContent = {
+                                            IconButton(
+                                                onClick = {
+                                                    viewModel.togglePracticeArchived(p.id, false)
+                                                    scope.launch {
+                                                        snackbarHostState.currentSnackbarData?.dismiss()
+                                                        snackbarHostState.showSnackbar(
+                                                            message = "Restored '${p.name}'",
+                                                            duration = SnackbarDuration.Short
+                                                        )
+                                                    }
+                                                }
+                                            ) {
+                                                Icon(Icons.Default.Unarchive, contentDescription = "Restore Practice")
+                                            }
+                                        },
+                                        colors = ListItemDefaults.colors(containerColor = Color.Transparent)
+                                    )
                                 }
-                            )
-                        }
-                        if (archivedPractices.isEmpty()) {
-                            item { Text("No archived practices.", color = Color.Gray) }
+                            }
                         }
                     }
                 }
             }
-        },
-        confirmButton = {
-            TextButton(onClick = onDismiss) { Text("Done") }
         }
-    )
+    }
+}
+
+@Composable
+fun ManagePracticesDialog(
+    viewModel: com.example.ui.JapaViewModel,
+    onDismiss: () -> Unit
+) {
+    ManagePracticesSheet(viewModel = viewModel, onDismiss = onDismiss)
 }
 
 @Composable
@@ -1354,46 +1520,138 @@ fun PracticeManagementRow(
     onArchive: () -> Unit,
     onSetDefault: () -> Unit
 ) {
+    var showMenu by remember { mutableStateOf(false) }
+
     Card(
         modifier = Modifier.fillMaxWidth(),
+        shape = MaterialTheme.shapes.medium,
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
     ) {
         Row(
-            modifier = Modifier.padding(12.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(0.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.DragHandle,
+                    contentDescription = "Reorder handle",
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                    modifier = Modifier.size(20.dp)
+                )
+                
+                IconButton(
+                    onClick = onMoveUp ?: {},
+                    enabled = onMoveUp != null,
+                    modifier = Modifier.size(32.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.ArrowUpward,
+                        contentDescription = "Move Up",
+                        tint = if (onMoveUp != null) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.25f),
+                        modifier = Modifier.size(16.dp)
+                    )
+                }
+
+                IconButton(
+                    onClick = onMoveDown ?: {},
+                    enabled = onMoveDown != null,
+                    modifier = Modifier.size(32.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.ArrowDownward,
+                        contentDescription = "Move Down",
+                        tint = if (onMoveDown != null) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.25f),
+                        modifier = Modifier.size(16.dp)
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.width(8.dp))
+
             Column(modifier = Modifier.weight(1f)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(practice.name, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodyLarge)
+                    Text(
+                        text = practice.name,
+                        fontWeight = FontWeight.Bold,
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
                     if (isDefault) {
                         Spacer(modifier = Modifier.width(8.dp))
                         SuggestionChip(
                             onClick = {},
-                            label = { Text("DEFAULT", fontSize = 10.sp) },
-                            colors = SuggestionChipDefaults.suggestionChipColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
+                            label = {
+                                Text(
+                                    text = "DEFAULT",
+                                    style = MaterialTheme.typography.labelSmall
+                                )
+                            },
+                            shape = MaterialTheme.shapes.extraSmall,
+                            colors = SuggestionChipDefaults.suggestionChipColors(
+                                containerColor = MaterialTheme.colorScheme.primaryContainer,
+                                labelColor = MaterialTheme.colorScheme.onPrimaryContainer
+                            )
                         )
                     }
                 }
-                Text(practice.practiceType, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(
+                    text = practice.practiceType,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
-            
-            Row {
-                if (!isDefault) {
-                    IconButton(onClick = onSetDefault) {
-                        Icon(Icons.Default.PushPin, "Set Default", modifier = Modifier.size(20.dp))
+
+            Box {
+                IconButton(
+                    onClick = { showMenu = true },
+                    modifier = Modifier.size(36.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.MoreVert,
+                        contentDescription = "More actions",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+
+                DropdownMenu(
+                    expanded = showMenu,
+                    onDismissRequest = { showMenu = false }
+                ) {
+                    if (!isDefault) {
+                        DropdownMenuItem(
+                            text = { Text("Set as Default") },
+                            leadingIcon = {
+                                Icon(
+                                    Icons.Default.PushPin,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            },
+                            onClick = {
+                                showMenu = false
+                                onSetDefault()
+                            }
+                        )
                     }
-                }
-                
-                IconButton(onClick = onArchive) {
-                    Icon(Icons.Default.Archive, "Archive", modifier = Modifier.size(20.dp))
-                }
-                
-                IconButton(onClick = onMoveUp ?: {}, enabled = onMoveUp != null) {
-                    Icon(Icons.Default.ArrowUpward, "Move Up", modifier = Modifier.size(20.dp))
-                }
-                
-                IconButton(onClick = onMoveDown ?: {}, enabled = onMoveDown != null) {
-                    Icon(Icons.Default.ArrowDownward, "Move Down", modifier = Modifier.size(20.dp))
+                    DropdownMenuItem(
+                        text = { Text("Archive") },
+                        leadingIcon = {
+                            Icon(
+                                Icons.Default.Archive,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        },
+                        onClick = {
+                            showMenu = false
+                            onArchive()
+                        }
+                    )
                 }
             }
         }

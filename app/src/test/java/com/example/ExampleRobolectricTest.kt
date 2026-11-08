@@ -159,4 +159,37 @@ class ExampleRobolectricTest {
         cursor.close()
         db.close()
     }
+
+    @Test
+    fun `test custom practice reordering maintains distinct displayOrder values`() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val db = createDatabaseAtVersion1(context, "test_db_reorder")
+        AppDatabase.MIGRATION_1_2.migrate(db)
+        AppDatabase.MIGRATION_2_3.migrate(db)
+        AppDatabase.MIGRATION_3_4.migrate(db)
+        AppDatabase.MIGRATION_4_5.migrate(db)
+        AppDatabase.MIGRATION_5_6.migrate(db)
+
+        // Insert 5 active practices with display orders 0, 1, 2, 3, 4
+        for (i in 0..4) {
+            db.execSQL("INSERT INTO custom_practices (id, name, defaultTarget, displayOrder, isArchived) VALUES (${i + 1}, 'Practice $i', 108, $i, 0)")
+        }
+
+        // Swap 4th practice (id 4, order 3) and 3rd practice (id 3, order 2)
+        db.execSQL("UPDATE custom_practices SET displayOrder = 2 WHERE id = 4")
+        db.execSQL("UPDATE custom_practices SET displayOrder = 3 WHERE id = 3")
+
+        val cursor = db.query("SELECT id, displayOrder FROM custom_practices ORDER BY displayOrder ASC")
+        val ids = mutableListOf<Long>()
+        val orders = mutableListOf<Int>()
+        while (cursor.moveToNext()) {
+            ids.add(cursor.getLong(0))
+            orders.add(cursor.getInt(1))
+        }
+        cursor.close()
+        db.close()
+
+        assertEquals(listOf(1L, 2L, 4L, 3L, 5L), ids)
+        assertEquals(listOf(0, 1, 2, 3, 4), orders)
+    }
 }

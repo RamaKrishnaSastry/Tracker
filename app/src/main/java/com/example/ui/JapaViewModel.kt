@@ -480,8 +480,8 @@ class JapaViewModel(application: Application) : AndroidViewModel(application) {
 
     fun updatePracticeOrder(practices: List<CustomPractice>) {
         viewModelScope.launch {
-            practices.forEachIndexed { index, practice ->
-                customPracticeDao.updatePracticeOrder(practice.id, index)
+            practices.forEach { practice ->
+                customPracticeDao.updatePracticeOrder(practice.id, practice.displayOrder)
             }
             prefs.updateSettingsTimestamp()
             repository.syncWithCloud(isLocalUpdate = true)
