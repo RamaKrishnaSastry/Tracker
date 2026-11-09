@@ -269,7 +269,7 @@ fun HistoryScreen(
                 .fillMaxSize()
                 .statusBarsPadding()
                 .padding(horizontal = 16.dp),
-            contentPadding = PaddingValues(bottom = if (isBulkEditMode) 120.dp else 96.dp),
+            contentPadding = PaddingValues(bottom = if (isBulkEditMode) 160.dp else 120.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             item {
@@ -492,14 +492,15 @@ fun HistoryScreen(
             item { Spacer(modifier = Modifier.height(24.dp)) }
         }
 
-        // Floating Action Bar overlay (floating directly with transparent background)
+        // Floating Action Bar overlay (positioned ABOVE the bottom navigation bar)
         AnimatedVisibility(
             visible = isBulkEditMode,
             enter = slideInVertically(initialOffsetY = { it }) + fadeIn(),
             exit = slideOutVertically(targetOffsetY = { it }) + fadeOut(),
             modifier = Modifier
                 .align(Alignment.BottomCenter)
-                .padding(bottom = 12.dp, start = 16.dp, end = 16.dp)
+                .windowInsetsPadding(WindowInsets.navigationBars)
+                .padding(bottom = 84.dp, start = 16.dp, end = 16.dp)
         ) {
             Surface(
                 modifier = Modifier.fillMaxWidth(),
