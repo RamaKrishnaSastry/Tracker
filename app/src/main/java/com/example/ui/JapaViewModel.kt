@@ -120,19 +120,32 @@ class JapaViewModel(application: Application) : AndroidViewModel(application) {
     val archivedCustomPractices: StateFlow<List<CustomPractice>> = customPracticeDao.getArchivedPracticesFlow()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    val allPracticeTotals: StateFlow<Map<Long, Int>> = customPracticeDao.getAllPracticeTotalsFlow()
-        .map { list -> list.associate { it.practiceId to it.totalCount } }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyMap())
+    val allPracticeTotals: StateFlow<Map<Long, Int>> = combine(
+        customPracticeDao.getAllPracticeTotalsFlow(),
+        allCustomPractices
+    ) { list, practices ->
+        val validIds = practices.map { it.id }.toSet()
+        list.filter { validIds.contains(it.practiceId) }.associate { it.practiceId to it.totalCount }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyMap())
 
-    val allPracticePunasTotals: StateFlow<Map<Long, Int>> = customPracticeDao.getAllPracticeTotalsFlow()
-        .map { list -> list.associate { it.practiceId to it.punasCount } }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyMap())
+    val allPracticePunasTotals: StateFlow<Map<Long, Int>> = combine(
+        customPracticeDao.getAllPracticeTotalsFlow(),
+        allCustomPractices
+    ) { list, practices ->
+        val validIds = practices.map { it.id }.toSet()
+        list.filter { validIds.contains(it.practiceId) }.associate { it.practiceId to it.punasCount }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyMap())
 
     val allEntries: StateFlow<List<JapaEntry>> = repository.allEntriesFlow
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    val allCustomPracticeEntries: StateFlow<List<CustomPracticeEntry>> = customPracticeDao.getAllCustomPracticeEntriesFlow()
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+    val allCustomPracticeEntries: StateFlow<List<CustomPracticeEntry>> = combine(
+        customPracticeDao.getAllCustomPracticeEntriesFlow(),
+        allCustomPractices
+    ) { entries, practices ->
+        val validIds = practices.map { it.id }.toSet()
+        entries.filter { validIds.contains(it.practiceId) }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     private val _activeCustomEntry = MutableStateFlow<CustomPracticeEntry?>(null)
     val activeCustomEntry: StateFlow<CustomPracticeEntry?> = _activeCustomEntry.asStateFlow()
@@ -475,6 +488,9 @@ class JapaViewModel(application: Application) : AndroidViewModel(application) {
             if (_activePracticeId.value == practice.id) {
                 _activePracticeId.value = NO_PRACTICE_SELECTED_ID
                 prefs.setActivePracticeId(NO_PRACTICE_SELECTED_ID)
+            }
+            if (_activeCustomEntry.value?.practiceId == practice.id) {
+                _activeCustomEntry.value = null
             }
             repository.syncWithCloud(isLocalUpdate = true)
         }

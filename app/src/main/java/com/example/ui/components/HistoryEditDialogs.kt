@@ -521,7 +521,7 @@ fun HistoricalEditDialog(
                     shape = MaterialTheme.shapes.small,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(48.dp)
+                        .heightIn(min = 48.dp)
                         .testTag("dialog_save_button")
                 ) {
                     Text("Save Changes", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodyMedium)
@@ -531,7 +531,7 @@ fun HistoricalEditDialog(
                     shape = MaterialTheme.shapes.small,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(44.dp)
+                        .heightIn(min = 44.dp)
                         .testTag("dialog_dismiss_button")
                 ) {
                     Text("Cancel", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -922,7 +922,7 @@ fun CustomSandhyaEditDialog(
                     shape = MaterialTheme.shapes.small,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(48.dp)
+                        .heightIn(min = 48.dp)
                         .testTag("dialog_save_button")
                 ) {
                     Text("Save Changes", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodyMedium)
@@ -932,7 +932,7 @@ fun CustomSandhyaEditDialog(
                     shape = MaterialTheme.shapes.small,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(44.dp)
+                        .heightIn(min = 44.dp)
                         .testTag("dialog_dismiss_button")
                 ) {
                     Text("Cancel", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -1057,7 +1057,7 @@ fun CustomCountEditDialog(
                     shape = MaterialTheme.shapes.small,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(48.dp)
+                        .heightIn(min = 48.dp)
                 ) {
                     Text("Save Changes", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodyMedium)
                 }
@@ -1066,7 +1066,7 @@ fun CustomCountEditDialog(
                     shape = MaterialTheme.shapes.small,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(44.dp)
+                        .heightIn(min = 44.dp)
                 ) {
                     Text("Cancel", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }

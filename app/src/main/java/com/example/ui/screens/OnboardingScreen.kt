@@ -57,6 +57,8 @@ fun OnboardingScreen(
     val scrollState = rememberScrollState()
     val context = LocalContext.current
 
+    var onboardingAuthError by remember { mutableStateOf<String?>(null) }
+
     val googleSignInLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult()
     ) { result ->
@@ -64,6 +66,7 @@ fun OnboardingScreen(
         try {
             val account = task.getResult(ApiException::class.java)
             if (account != null) {
+                onboardingAuthError = null
                 viewModel.authManager.updateProfile(account)
                 viewModel.handleGoogleSignInSuccess(onOnboarded)
             }
@@ -71,17 +74,15 @@ fun OnboardingScreen(
             Log.e("OnboardingScreen", "Google Sign-In failed with code ${e.statusCode}: ${e.message}")
             val errorMessage = when (e.statusCode) {
                 10 -> "Developer Error (10): SHA-1 mismatch or Drive API not enabled. Check Cloud Console."
-                12501 -> "Sign-In cancelled. Proceeding offline."
+                12501 -> "Sign-In cancelled (12501)."
                 12500 -> "Sign-In failed (12500). Verify OAuth credentials or Consent Screen."
-                else -> "Sign-In error (code ${e.statusCode}). Proceeding offline."
+                else -> "Sign-In error (code ${e.statusCode})."
             }
-            android.widget.Toast.makeText(context, errorMessage, android.widget.Toast.LENGTH_LONG).show()
+            onboardingAuthError = errorMessage
             Log.e("OnboardingScreen", "Full error: $errorMessage")
-            viewModel.setOnboardingStep(3)
         } catch (e: Exception) {
             Log.e("OnboardingScreen", "Unexpected error during sign-in: ${e.message}")
-            android.widget.Toast.makeText(context, "Unexpected sign-in error: ${e.message}", android.widget.Toast.LENGTH_LONG).show()
-            viewModel.setOnboardingStep(3)
+            onboardingAuthError = "Unexpected sign-in error: ${e.message}"
         }
     }
 
@@ -266,6 +267,67 @@ fun OnboardingScreen(
                                             style = MaterialTheme.typography.bodySmall,
                                             color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f)
                                         )
+                                    }
+                                }
+
+                                if (onboardingAuthError != null) {
+                                    Spacer(modifier = Modifier.height(16.dp))
+                                    Card(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .testTag("onboarding_sign_in_error_card"),
+                                        colors = CardDefaults.cardColors(
+                                            containerColor = MaterialTheme.colorScheme.errorContainer,
+                                            contentColor = MaterialTheme.colorScheme.onErrorContainer
+                                        ),
+                                        shape = RoundedCornerShape(12.dp)
+                                    ) {
+                                        Column(modifier = Modifier.padding(16.dp)) {
+                                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                                Icon(
+                                                    imageVector = Icons.Default.Info,
+                                                    contentDescription = "Sign-In Error",
+                                                    tint = MaterialTheme.colorScheme.error
+                                                )
+                                                Spacer(modifier = Modifier.width(8.dp))
+                                                Text(
+                                                    text = "Google Sign-In Status",
+                                                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                                                    color = MaterialTheme.colorScheme.onErrorContainer
+                                                )
+                                            }
+                                            Spacer(modifier = Modifier.height(8.dp))
+                                            Text(
+                                                text = onboardingAuthError ?: "",
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = MaterialTheme.colorScheme.onErrorContainer
+                                            )
+                                            Spacer(modifier = Modifier.height(12.dp))
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                horizontalArrangement = Arrangement.End
+                                            ) {
+                                                TextButton(
+                                                    onClick = {
+                                                        onboardingAuthError = null
+                                                        viewModel.setOnboardingStep(3)
+                                                    }
+                                                ) {
+                                                    Text("Continue Offline", color = MaterialTheme.colorScheme.onErrorContainer)
+                                                }
+                                                Spacer(modifier = Modifier.width(8.dp))
+                                                Button(
+                                                    onClick = {
+                                                        onboardingAuthError = null
+                                                        val client = viewModel.authManager.getSignInClient()
+                                                        googleSignInLauncher.launch(client.signInIntent)
+                                                    },
+                                                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                                                ) {
+                                                    Text("Retry Sign-In")
+                                                }
+                                            }
+                                        }
                                     }
                                 }
                             }

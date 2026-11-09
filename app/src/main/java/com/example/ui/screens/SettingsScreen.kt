@@ -1045,7 +1045,7 @@ fun SettingsScreen(
             }
         }
 
-        Spacer(modifier = Modifier.height(140.dp))
+        Spacer(modifier = Modifier.height(com.example.ui.theme.NavBarClearance))
     }
 
     // Direct sleek Custom Time Picker selection dialog popup

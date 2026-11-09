@@ -418,7 +418,7 @@ fun MonthlyCompactStatsRow(
             Spacer(
                 modifier = Modifier
                     .width(1.dp)
-                    .height(36.dp)
+                    .heightIn(min = 36.dp)
                     .background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
             )
 
@@ -453,7 +453,7 @@ fun MonthlyCompactStatsRow(
             Spacer(
                 modifier = Modifier
                     .width(1.dp)
-                    .height(36.dp)
+                    .heightIn(min = 36.dp)
                     .background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
             )
 

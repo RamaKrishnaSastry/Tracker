@@ -1399,16 +1399,12 @@ fun PlaceCategoryFilterRow(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .horizontalScroll(rememberScrollState()),
+                .horizontalScroll(rememberScrollState())
+                .padding(horizontal = 4.dp, vertical = 4.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             val isAllSelected = selectedPlaceCategoryFilter == null
-            val allChipScale by androidx.compose.animation.core.animateFloatAsState(
-                targetValue = if (isAllSelected) 1.05f else 1.0f,
-                animationSpec = androidx.compose.animation.core.spring(stiffness = androidx.compose.animation.core.Spring.StiffnessMediumLow),
-                label = "allChipScale"
-            )
 
             FilterChip(
                 selected = isAllSelected,
@@ -1428,20 +1424,11 @@ fun PlaceCategoryFilterRow(
                         contentDescription = null,
                         modifier = Modifier.size(14.dp)
                     )
-                },
-                modifier = Modifier.graphicsLayer {
-                    scaleX = allChipScale
-                    scaleY = allChipScale
                 }
             )
 
             PlaceCategory.entries.forEach { category ->
                 val isSelected = selectedPlaceCategoryFilter.equals(category.id, ignoreCase = true)
-                val chipScale by androidx.compose.animation.core.animateFloatAsState(
-                    targetValue = if (isSelected) 1.05f else 1.0f,
-                    animationSpec = androidx.compose.animation.core.spring(stiffness = androidx.compose.animation.core.Spring.StiffnessMediumLow),
-                    label = "chipScale_${category.id}"
-                )
 
                 FilterChip(
                     selected = isSelected,
@@ -1473,11 +1460,7 @@ fun PlaceCategoryFilterRow(
                         selected = isSelected,
                         borderColor = if (isSelected) category.primaryColor else MaterialTheme.colorScheme.outline.copy(alpha = 0.3f),
                         borderWidth = if (isSelected) 2.dp else 1.dp
-                    ),
-                    modifier = Modifier.graphicsLayer {
-                        scaleX = chipScale
-                        scaleY = chipScale
-                    }
+                    )
                 )
             }
         }

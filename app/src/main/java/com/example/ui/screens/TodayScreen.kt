@@ -644,7 +644,7 @@ fun TodayScreen(
                 date = todayDate
             )
             
-            Spacer(modifier = Modifier.height(140.dp))
+            Spacer(modifier = Modifier.height(com.example.ui.theme.NavBarClearance))
         }
         }
     }

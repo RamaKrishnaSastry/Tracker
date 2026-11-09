@@ -116,6 +116,12 @@ fun HistoryScreen(
         stats.lifetimeTotal + customTotal
     }
 
+    // Filter active/valid practices and custom entries to prevent deleted practices' stale counts from appearing
+    val validPracticeIds = remember(allPractices) { allPractices.map { it.id }.toSet() }
+    val validCustomEntries = remember(allCustomEntries, validPracticeIds) {
+        allCustomEntries.filter { validPracticeIds.contains(it.practiceId) }
+    }
+
     // 1. Eligible records filtered by location (First stage independent filter)
     val locationFilteredGayatriEntries = remember(entries, selectedPlaceCategoryFilter) {
         if (selectedPlaceCategoryFilter == null) {
@@ -125,11 +131,11 @@ fun HistoryScreen(
         }
     }
 
-    val locationFilteredCustomEntries = remember(allCustomEntries, selectedPlaceCategoryFilter) {
+    val locationFilteredCustomEntries = remember(validCustomEntries, selectedPlaceCategoryFilter) {
         if (selectedPlaceCategoryFilter == null) {
-            allCustomEntries
+            validCustomEntries
         } else {
-            allCustomEntries.filter { (it.placeCategory ?: "Home").equals(selectedPlaceCategoryFilter, ignoreCase = true) }
+            validCustomEntries.filter { (it.placeCategory ?: "Home").equals(selectedPlaceCategoryFilter, ignoreCase = true) }
         }
     }
 
@@ -232,7 +238,7 @@ fun HistoryScreen(
         }.sortedByDescending { it.monthStr }
     }
 
-    val locationStats = remember(entries, allCustomEntries, selectedMantraId) {
+    val locationStats = remember(entries, validCustomEntries, selectedMantraId) {
         val catMap = mutableMapOf<String, Long>()
         var totalChants = 0L
 
@@ -247,7 +253,7 @@ fun HistoryScreen(
             }
         }
         if (selectedMantraId == null || selectedMantraId != GAYATRI_PRACTICE_ID) {
-            allCustomEntries.forEach { ce ->
+            validCustomEntries.forEach { ce ->
                 if (selectedMantraId == null || ce.practiceId == selectedMantraId) {
                     val cat = ce.placeCategory ?: "Home"
                     val count = ce.dailyTotal.toLong()
@@ -269,7 +275,7 @@ fun HistoryScreen(
                 .fillMaxSize()
                 .statusBarsPadding()
                 .padding(horizontal = 16.dp),
-            contentPadding = PaddingValues(bottom = if (isBulkEditMode) 160.dp else 120.dp),
+            contentPadding = PaddingValues(bottom = if (isBulkEditMode) com.example.ui.theme.Dimens.bulkEditBottomPadding + com.example.ui.theme.NavBarClearance else com.example.ui.theme.NavBarClearance),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             item {
@@ -489,7 +495,7 @@ fun HistoryScreen(
 
 
 
-            item { Spacer(modifier = Modifier.height(140.dp)) }
+            item { Spacer(modifier = Modifier.height(com.example.ui.theme.NavBarClearance)) }
         }
 
         // Floating Action Bar overlay (positioned ABOVE the bottom navigation bar)
@@ -500,7 +506,7 @@ fun HistoryScreen(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .windowInsetsPadding(WindowInsets.navigationBars)
-                .padding(bottom = 84.dp, start = 16.dp, end = 16.dp)
+                .padding(bottom = com.example.ui.theme.Dimens.bulkEditBottomPadding, start = 16.dp, end = 16.dp)
         ) {
             Surface(
                 modifier = Modifier.fillMaxWidth(),
@@ -647,8 +653,8 @@ fun HistoryScreen(
 
     selectedSummaryDate?.let { date ->
         val gayatriEntry = gayatriEntriesMap[date]
-        val customEntriesForDate = remember(allCustomEntries, date) {
-            allCustomEntries.filter { it.date == date }.associateBy { it.practiceId }
+        val customEntriesForDate = remember(validCustomEntries, date) {
+            validCustomEntries.filter { it.date == date }.associateBy { it.practiceId }
         }
         DailySummaryDialog(
             date = date,
@@ -675,7 +681,7 @@ fun HistoryScreen(
     // Location Picker Dialog for editing a past date's place
     locationEditDate?.let { date ->
         val gEntry = gayatriEntriesMap[date]
-        val cEntry = allCustomEntries.find { it.date == date }
+        val cEntry = validCustomEntries.find { it.date == date }
         val curName = gEntry?.placeName ?: cEntry?.placeName ?: "Home"
         val curCat = gEntry?.placeCategory ?: cEntry?.placeCategory ?: "Home"
         val curLat = gEntry?.latitude ?: cEntry?.latitude

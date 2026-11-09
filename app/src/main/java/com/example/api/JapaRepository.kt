@@ -523,8 +523,22 @@ class JapaRepository(
                         }
                     }
                     
+                    // Build valid practice IDs set (including Gayatri practice ID)
+                    val validPracticeIds = mergedCustomPractices.keys + setOf(-1L)
+
+                    // Purge any local custom entries for practices that no longer exist
+                    val iterator = mergedCustomEntries.entries.iterator()
+                    while (iterator.hasNext()) {
+                        val entry = iterator.next()
+                        if (!validPracticeIds.contains(entry.value.practiceId)) {
+                            iterator.remove()
+                        }
+                    }
+
                     // Compare custom entries from cloud using non-zero priority + timestamps
                     cloudPayload.customEntries.forEach { ce ->
+                        if (!validPracticeIds.contains(ce.practiceId)) return@forEach
+
                         val key = "${ce.practiceId}_${ce.date}"
                         val localCe = mergedCustomEntries[key]
                         val cloudDailyTotal = ce.dailyTotal
@@ -586,7 +600,15 @@ class JapaRepository(
                     mergedCustomPractices.values.forEach {
                         customPracticeDao.insertPractice(it)
                     }
-                    mergedCustomEntries.values.forEach {
+                    val validPracticeIds = mergedCustomPractices.keys + setOf(-1L)
+                    val localAllCustomEntries = customPracticeDao.getAllCustomPracticeEntries()
+                    localAllCustomEntries.forEach { le ->
+                        if (!validPracticeIds.contains(le.practiceId)) {
+                            customPracticeDao.deleteEntriesForPractice(le.practiceId)
+                            customPracticeDao.deleteSessionsForPractice(le.practiceId)
+                        }
+                    }
+                    mergedCustomEntries.values.filter { validPracticeIds.contains(it.practiceId) }.forEach {
                         customPracticeDao.insertOrUpdateEntry(it)
                     }
                     Log.d(TAG, "Local database updated with newer records from Cloud sync.")
@@ -594,6 +616,7 @@ class JapaRepository(
 
                 // If local has newer, upload merged changes back up to the cloud
                 if (hasLocalNewerChanges || cloudPayload == null) {
+                    val validPracticeIds = mergedCustomPractices.keys + setOf(-1L)
                     val syncLocationAllowed = prefs.isSyncLocationEnabled()
                     val entriesMap = mergedEntries.mapValues { (_, entry) ->
                         SyncEntry(
@@ -634,24 +657,26 @@ class JapaRepository(
                         )
                     }
 
-                    val syncCustomEntries = mergedCustomEntries.values.map { ce ->
-                        SyncCustomPracticeEntry(
-                            practiceId = ce.practiceId,
-                            date = ce.date,
-                            count = ce.count,
-                            morningCount = ce.morningCount,
-                            afternoonCount = ce.afternoonCount,
-                            eveningCount = ce.eveningCount,
-                            morningPunasCount = ce.morningPunasCount,
-                            afternoonPunasCount = ce.afternoonPunasCount,
-                            eveningPunasCount = ce.eveningPunasCount,
-                            updatedAt = ce.updatedAt,
-                            placeName = ce.placeName,
-                            placeCategory = ce.placeCategory,
-                            latitude = if (syncLocationAllowed) ce.latitude else null,
-                            longitude = if (syncLocationAllowed) ce.longitude else null
-                        )
-                    }
+                    val syncCustomEntries = mergedCustomEntries.values
+                        .filter { validPracticeIds.contains(it.practiceId) }
+                        .map { ce ->
+                            SyncCustomPracticeEntry(
+                                practiceId = ce.practiceId,
+                                date = ce.date,
+                                count = ce.count,
+                                morningCount = ce.morningCount,
+                                afternoonCount = ce.afternoonCount,
+                                eveningCount = ce.eveningCount,
+                                morningPunasCount = ce.morningPunasCount,
+                                afternoonPunasCount = ce.afternoonPunasCount,
+                                eveningPunasCount = ce.eveningPunasCount,
+                                updatedAt = ce.updatedAt,
+                                placeName = ce.placeName,
+                                placeCategory = ce.placeCategory,
+                                latitude = if (syncLocationAllowed) ce.latitude else null,
+                                longitude = if (syncLocationAllowed) ce.longitude else null
+                            )
+                        }
 
                     val currentSyncTime = getCurrentUTCTimestamp()
                     val payload = SyncPayload(
