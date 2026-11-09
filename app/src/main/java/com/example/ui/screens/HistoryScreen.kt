@@ -489,7 +489,7 @@ fun HistoryScreen(
 
 
 
-            item { Spacer(modifier = Modifier.height(24.dp)) }
+            item { Spacer(modifier = Modifier.height(140.dp)) }
         }
 
         // Floating Action Bar overlay (positioned ABOVE the bottom navigation bar)
